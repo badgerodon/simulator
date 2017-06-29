@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+enum HandshakeType {
+    DIAL = 0;
+    LISTEN = 1;
+}
+
+message HandshakeRequest {
+    HandshakeType type = 1;
+    string endpoint = 2;
+}
+
+enum HandshakeStatus {
+    CONNECTED = 0;
+    FAILED = 1;
+}
+
+message HandshakeResult {
+    HandshakeStatus status = 1;
+}
