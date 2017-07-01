@@ -19,16 +19,18 @@ type (
 		mu       sync.Mutex
 		sessions map[string]*yamux.Session
 	}
-	// A Config configures the mesh
-	Config struct {
-		Address string
-	}
 )
 
-// DefaultConfig is the default Config
-var DefaultConfig = &Config{
-	Address: "127.0.0.1:7788",
-}
+var (
+	ackOK = meshpb.Message{
+		Type: meshpb.MessageType_ACK,
+		Data: []byte{1},
+	}
+	ackFail = meshpb.Message{
+		Type: meshpb.MessageType_ACK,
+		Data: []byte{0},
+	}
+)
 
 // New creates a new mesh
 func New(options ...func(*Config)) *Mesh {
@@ -45,30 +47,11 @@ func New(options ...func(*Config)) *Mesh {
 	}
 }
 
-// Serve serves request for the mesh
-func (m *Mesh) Serve() error {
-	li, err := net.Listen("tcp", m.cfg.Address)
-	if err != nil {
-		return err
-	}
-
-	for {
-		conn, err := li.Accept()
-		if err != nil {
-			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
-				time.Sleep(1)
-				continue
-			}
-			return err
-		}
-		go m.handle(conn)
-	}
-}
-
-func (m *Mesh) handle(conn net.Conn) {
+// Handle connects a connection to the mesh network
+func (m *Mesh) Handle(conn net.Conn) {
 	defer conn.Close()
 
-	var req meshpb.HandshakeRequest
+	var req meshpb.Message
 	err := meshpb.Read(conn, &req)
 	if err != nil {
 		log.Println("invalid handshake", err)
@@ -76,30 +59,26 @@ func (m *Mesh) handle(conn net.Conn) {
 	}
 
 	switch req.Type {
-	case meshpb.HandshakeType_DIAL:
+	case meshpb.MessageType_DIAL:
+		endpoint := string(req.Data)
+
 		m.mu.Lock()
-		session, ok := m.sessions[req.Endpoint]
+		session, ok := m.sessions[endpoint]
 		m.mu.Unlock()
 
 		if !ok {
-			meshpb.Write(conn, &meshpb.HandshakeResult{
-				Status: meshpb.HandshakeStatus_FAILED,
-			})
+			meshpb.Write(conn, &ackFail)
 			return
 		}
 
 		stream, err := session.Open()
 		if err != nil {
-			meshpb.Write(conn, &meshpb.HandshakeResult{
-				Status: meshpb.HandshakeStatus_FAILED,
-			})
+			meshpb.Write(conn, &ackFail)
 			log.Println("failed to open stream", err)
 			return
 		}
 
-		err = meshpb.Write(conn, &meshpb.HandshakeResult{
-			Status: meshpb.HandshakeStatus_CONNECTED,
-		})
+		err = meshpb.Write(conn, &ackOK)
 		if err != nil {
 			return
 		}
@@ -115,43 +94,39 @@ func (m *Mesh) handle(conn net.Conn) {
 			errs <- err
 		}()
 		<-errs
-	case meshpb.HandshakeType_LISTEN:
+	case meshpb.MessageType_LISTEN:
+		endpoint := string(req.Data)
+
 		m.mu.Lock()
-		_, ok := m.sessions[req.Endpoint]
+		_, ok := m.sessions[endpoint]
 		m.mu.Unlock()
 
 		if ok {
-			meshpb.Write(conn, &meshpb.HandshakeResult{
-				Status: meshpb.HandshakeStatus_FAILED,
-			})
+			meshpb.Write(conn, &ackFail)
 			return
 		}
 
 		session, err := yamux.Server(conn, nil)
 		if err != nil {
 			m.mu.Unlock()
-			meshpb.Write(conn, &meshpb.HandshakeResult{
-				Status: meshpb.HandshakeStatus_FAILED,
-			})
+			meshpb.Write(conn, &ackFail)
 			log.Println("failed to create session", err)
 			return
 		}
 
-		err = meshpb.Write(conn, &meshpb.HandshakeResult{
-			Status: meshpb.HandshakeStatus_CONNECTED,
-		})
+		err = meshpb.Write(conn, &ackOK)
 		if err != nil {
 			return
 		}
 
 		m.mu.Lock()
-		cur, ok := m.sessions[req.Endpoint]
+		cur, ok := m.sessions[endpoint]
 		if ok {
 			// re-use the existing session and close this one
 			session.Close()
 		} else {
 			// add this session to the map
-			m.sessions[req.Endpoint] = session
+			m.sessions[endpoint] = session
 			cur = session
 		}
 		m.mu.Unlock()
@@ -160,9 +135,9 @@ func (m *Mesh) handle(conn net.Conn) {
 		for range time.Tick(time.Millisecond) {
 			if cur.IsClosed() {
 				m.mu.Lock()
-				session, ok := m.sessions[req.Endpoint]
+				session, ok := m.sessions[endpoint]
 				if ok && session == cur {
-					delete(m.sessions, req.Endpoint)
+					delete(m.sessions, endpoint)
 				}
 				m.mu.Unlock()
 				break
