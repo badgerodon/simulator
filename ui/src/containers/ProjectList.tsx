@@ -2,19 +2,21 @@ import * as React from 'react';
 import { RouterState, Link } from 'react-router';
 import { connect } from 'react-redux';
 
-import { fetchProjectList } from '../actions';
+import { UIState } from '../redux/state';
+import { listProjects } from '../redux/actions/project';
 import { Project } from '../models';
 
-interface ProjectListProps {
+interface State {
   projects: Array<Project>;
   error: string;
-
-  fetchProjectList: typeof fetchProjectList;
+}
+interface Props extends RouterState, State {
+  listProjects: typeof listProjects;
 }
 
-class ProjectList extends React.Component<ProjectListProps, {}> {
+class ProjectList extends React.Component<Props> {
   componentWillMount() {
-    this.props.fetchProjectList();
+    this.props.listProjects();
   }
 
   render() {
@@ -50,14 +52,14 @@ class ProjectList extends React.Component<ProjectListProps, {}> {
 }
 
 const connected = connect(
-  state => {
+  (state: UIState): State => {
     return {
-      projects: state.projectList.projects,
-      error: state.projectList.error
+      projects: state.project.list || [],
+      error: state.project.error
     };
   },
   {
-    fetchProjectList: fetchProjectList
+    listProjects: listProjects
   }
 )(ProjectList);
 

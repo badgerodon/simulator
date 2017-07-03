@@ -1,29 +1,51 @@
 import * as React from 'react';
-import { RouterState, Link } from 'react-router';
 import { connect } from 'react-redux';
+import { RouterState, Link } from 'react-router';
 
-import { fetchProcessList } from '../actions';
+import { UIState } from '../redux/state';
+import { deleteProcess, listProcesses } from '../redux/actions/process';
 import { Process } from '../models';
 
-interface WorkbenchProps extends RouterState {
+interface State {
   processes: Array<Process>;
   error?: string;
-  fetchProcessList: typeof fetchProcessList;
 }
-class Workbench extends React.Component<WorkbenchProps, {}> {
-  componentDidMount() {
-    this.props.fetchProcessList(+this.props.params.projectID);
+interface Props extends RouterState, State {
+  deleteProcess: typeof deleteProcess;
+  listProcesses: typeof listProcesses;
+}
+class Workbench extends React.Component<Props, {}> {
+  componentWillMount() {
+    this.props.listProcesses(parseInt(this.props.params.projectID, 10));
   }
+
+  componentWillReceiveProps(nextProps: Props) {
+    if (nextProps.params.projectID !== this.props.params.projectID) {
+      this.props.listProcesses(parseInt(this.props.params.projectID, 10));
+    }
+  }
+
+  handleClickDelete(evt: React.MouseEvent<any>, processID: number) {
+    this.props.deleteProcess(processID);
+  }
+
   render() {
     return (
       <div>
-        <h2>Workbench</h2>
+        <h2>
+          <Link to="/">Projects</Link>
+        </h2>
         <h3>Processes</h3>
         {this.props.error
           ? <div className="error">
               Failed to fetch projects: {this.props.error}.
             </div>
           : null}
+        <Link
+          to={'/projects/' + this.props.params.projectID + '/processes/create'}
+        >
+          Create Process
+        </Link>
         <table>
           <thead>
             <tr>
@@ -45,7 +67,14 @@ class Workbench extends React.Component<WorkbenchProps, {}> {
                 <td>
                   {process.config.branch}
                 </td>
-                <td>&nbsp;</td>
+                <td>
+                  <a
+                    href="#delete"
+                    onClick={evt => this.handleClickDelete(evt, process.id)}
+                  >
+                    Delete
+                  </a>
+                </td>
               </tr>
             )}
           </tbody>
@@ -56,14 +85,15 @@ class Workbench extends React.Component<WorkbenchProps, {}> {
 }
 
 const workbenchConnected = connect(
-  (state: any) => {
+  (state: UIState): State => {
     return {
-      processes: state.processList.processes,
-      error: state.processList.error
+      processes: state.process.list || [],
+      error: state.process.error
     };
   },
   {
-    fetchProcessList: fetchProcessList
+    deleteProcess,
+    listProcesses
   }
 )(Workbench);
 

@@ -13,13 +13,26 @@ import {
 } from 'react-router-redux';
 import { browserHistory } from 'react-router';
 
-import { projectListReducer, processListReducer } from './reducers';
+import {
+  State as ProcessState,
+  reducer as processReducer
+} from './reducers/process';
+import {
+  State as ProjectState,
+  reducer as projectReducer
+} from './reducers/project';
+
+export interface UIState {
+  routing: RouterState;
+  process: ProcessState;
+  project: ProjectState;
+}
 
 export const store = createStore(
   combineReducers({
     routing: routerReducer,
-    projectList: projectListReducer,
-    processList: processListReducer
+    process: processReducer,
+    project: projectReducer
   }),
   compose(applyMiddleware(thunk))
 );

@@ -1,15 +1,26 @@
 import { Process, Project } from '../models';
 
-interface eventedRequest<T> {
-  result: T;
-  error: DOMException;
-  onsuccess: (evt: any) => void;
-  onerror: (evt: any) => void;
-}
-function promisify<T>(req: eventedRequest<T>): Promise<T> {
+function promisify<T>(req: IDBRequest): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     req.onsuccess = (evt: any) => {
       resolve(req.result);
+    };
+    req.onerror = (evt: any) => {
+      reject(req.error);
+    };
+  });
+}
+
+function promisifyCursor<T>(req: IDBRequest): Promise<Array<T>> {
+  return new Promise<Array<T>>((resolve, reject) => {
+    let arr = new Array<T>();
+    req.onsuccess = (evt: any) => {
+      if (req.result) {
+        arr.push(req.result.value);
+        req.result.continue();
+      } else {
+        resolve(arr);
+      }
     };
     req.onerror = (evt: any) => {
       reject(req.error);
@@ -47,56 +58,67 @@ let dbp = new Promise<IDBDatabase>((resolve, reject) => {
   };
 });
 
-export const getProject = (id: number): Promise<Project> => {
+export const deleteProject = (id: number) => {
   return dbp.then(db =>
-    promisify(
+    promisify<undefined>(
+      db.transaction('project', 'readwrite').objectStore('project').delete(id)
+    )
+  );
+};
+export const getProject = (id: number) => {
+  return dbp.then(db =>
+    promisify<Project>(
       db.transaction('project', 'readonly').objectStore('project').get(id)
     )
   );
 };
-export const getProjects = (): Promise<Array<Project>> => {
+export const getProjects = () => {
   return dbp.then(db =>
-    promisify(
-      db.transaction('project', 'readonly').objectStore('project').getAll()
+    promisifyCursor<Project>(
+      db.transaction('project', 'readonly').objectStore('project').openCursor()
     )
   );
 };
-export const putProject = (project: Project): Promise<number> => {
+export const putProject = (project: Project) => {
   return dbp.then(db =>
-    promisify(
+    promisify<number>(
       db.transaction('project', 'readwrite').objectStore('project').put(project)
     )
   );
 };
 
-export const putProcess = (process: Process): Promise<number> => {
+export const deleteProcess = (id: number) => {
   return dbp.then(db =>
-    promisify(
-      db.transaction('process', 'readwrite').objectStore('process').put(process)
+    promisify<undefined>(
+      db.transaction('process', 'readwrite').objectStore('process').delete(id)
     )
   );
 };
-export const getProcesses = (projectID: number): Promise<Array<Process>> => {
+export const getProcess = (processID: number) => {
   return dbp.then(db =>
-    promisify(
+    promisify<Process>(
+      db
+        .transaction('process', 'readonly')
+        .objectStore('process')
+        .get(processID)
+    )
+  );
+};
+export const getProcesses = (projectID: number) => {
+  return dbp.then(db =>
+    promisifyCursor<Process>(
       db
         .transaction('process', 'readonly')
         .objectStore('process')
         .index('projectID')
-        .getAll(projectID)
+        .openCursor(projectID)
     )
   );
 };
-
-putProject({
-  name: 'Hello World'
-}).then(projectID =>
-  putProcess({
-    projectID: projectID,
-    config: {
-      name: 'echo-0',
-      importPath: 'github.com/badgerodon/grpcsimulator/example/echo/server',
-      branch: 'master'
-    }
-  })
-);
+export const putProcess = (process: Process) => {
+  return dbp.then(db =>
+    promisify<number>(
+      db.transaction('process', 'readwrite').objectStore('process').put(process)
+    )
+  );
+};
