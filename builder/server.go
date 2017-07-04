@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 
 	"os/exec"
 
+	"cloud.google.com/go/storage"
 	"github.com/badgerodon/grpcsimulator/builder/builderpb"
 	"github.com/cespare/xxhash"
 	"golang.org/x/net/context"
@@ -36,14 +38,16 @@ type Server struct {
 	workingDir string
 	projectID  string
 	bucket     string
+	folder     string
 }
 
 // NewServer creates a new Server
-func NewServer(workingDir, projectID, bucket string) *Server {
+func NewServer(workingDir, projectID, bucket, folder string) *Server {
 	return &Server{
 		workingDir: workingDir,
 		projectID:  projectID,
 		bucket:     bucket,
+		folder:     folder,
 	}
 }
 
@@ -76,7 +80,7 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		return nil, grpc.Errorf(codes.Unknown, "failed to create src folder: %v", err)
 	}
 
-	_, err = git.Clone(memory.NewStorage(), osfs.New(checkoutPath), &git.CloneOptions{
+	repo, err := git.Clone(memory.NewStorage(), osfs.New(checkoutPath), &git.CloneOptions{
 		URL:           "https://" + url.PathEscape(provider) + "/" + url.PathEscape(organization) + "/" + url.PathEscape(repository) + ".git",
 		ReferenceName: plumbing.ReferenceName("refs/heads/" + req.Branch),
 		SingleBranch:  true,
@@ -86,13 +90,31 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		return nil, grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
 	}
 
+	head, err := repo.Head()
+	if err != nil {
+		return nil, err
+	}
+	fileName := head.Hash().String() + ".js"
+	remotePath := path.Join(s.folder, dir, fileName)
+	webPath := "https://storage.googleapis.com/" + s.bucket + "/" + s.folder + "/" + dir + "/" + fileName
+
+	exists, err := s.objectExists(ctx, remotePath)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return &builderpb.BuildResponse{
+			Location: webPath,
+		}, nil
+	}
+
 	binPath := filepath.Join(tmp, "bin")
 	err = os.MkdirAll(binPath, 0755)
 	if err != nil {
 		return nil, grpc.Errorf(codes.Unknown, "failed to create bin folder: %v", err)
 	}
 
-	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(binPath, "bin.js"), req.ImportPath)
+	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(binPath, fileName), req.ImportPath)
 	cmd.Env = append(cmd.Env, os.Environ()...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("GOPATH=%s", tmp))
 	bs, err := cmd.CombinedOutput()
@@ -100,9 +122,73 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		return nil, grpc.Errorf(codes.Unknown, "failed to build code: %v\n%v", err, string(bs))
 	}
 
+	for remotePath, localPath := range map[string]string{
+		remotePath:          filepath.Join(binPath, fileName),
+		remotePath + ".map": filepath.Join(binPath, fileName+".map"),
+	} {
+		err = s.uploadFile(ctx, remotePath, localPath)
+		if err != nil {
+			return nil, grpc.Errorf(codes.Unknown, "failed to upload file: %v", err)
+		}
+	}
+
 	return &builderpb.BuildResponse{
-		Location: filepath.Join(binPath, "bin.js"),
+		Location: webPath,
 	}, nil
+}
+
+func (s *Server) objectExists(ctx context.Context, remotePath string) (exists bool, err error) {
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return false, grpc.Errorf(codes.Unknown, "failed to create storage client: %v remote_path=%s",
+			err, remotePath)
+	}
+	defer client.Close()
+
+	object := client.Bucket(s.bucket).Object(remotePath)
+	_, err = object.Attrs(ctx)
+	if err == storage.ErrObjectNotExist {
+		return false, nil
+	} else if err != nil {
+		return false, grpc.Errorf(codes.Unknown, "failed to get object attributes: %v remote_path=%s",
+			err, remotePath)
+	}
+
+	return true, nil
+}
+
+func (s *Server) uploadFile(ctx context.Context, remotePath, localPath string) error {
+	src, err := os.Open(localPath)
+	if err != nil {
+		return grpc.Errorf(codes.Unknown, "failed to open source file: %v remote_path=%s local_path=%s",
+			err, remotePath, localPath)
+	}
+	defer src.Close()
+
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return grpc.Errorf(codes.Unknown, "failed to create storage client: %v remote_path=%s local_path=%s",
+			err, remotePath, localPath)
+	}
+	defer client.Close()
+
+	object := client.Bucket(s.bucket).Object(remotePath)
+	objectWriter := object.NewWriter(ctx)
+	defer objectWriter.Close()
+
+	_, err = io.Copy(objectWriter, src)
+	if err != nil {
+		return grpc.Errorf(codes.Unknown, "failed to upload file: %v remote_path=%s local_path=%s",
+			err, remotePath, localPath)
+	}
+
+	err = objectWriter.Close()
+	if err != nil {
+		return grpc.Errorf(codes.Unknown, "failed to upload file: %v remote_path=%s local_path=%s",
+			err, remotePath, localPath)
+	}
+
+	return nil
 }
 
 type buildContext struct {
