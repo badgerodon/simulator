@@ -39,16 +39,25 @@ type Server struct {
 	projectID  string
 	bucket     string
 	folder     string
+
+	client *storage.Client
 }
 
 // NewServer creates a new Server
-func NewServer(workingDir, projectID, bucket, folder string) *Server {
+func NewServer(workingDir, projectID, bucket, folder string) (*Server, error) {
+	client, err := storage.NewClient(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
 	return &Server{
 		workingDir: workingDir,
 		projectID:  projectID,
 		bucket:     bucket,
 		folder:     folder,
-	}
+
+		client: client,
+	}, nil
 }
 
 // Build builds the passed in repository
@@ -57,8 +66,8 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 	if len(importPathParts) < 3 {
 		return nil, grpc.Errorf(codes.InvalidArgument, "invalid import path: %s", req.ImportPath)
 	}
-	if importPathParts[0] != "github.com" {
-		return nil, grpc.Errorf(codes.InvalidArgument, "invalid import path: %s. only github.com or bitbucket.com is supported at this time", req.ImportPath)
+	if importPathParts[0] != "github.com" && importPathParts[0] != "bitbucket.org" {
+		return nil, grpc.Errorf(codes.InvalidArgument, "invalid import path: %s. only github.com or bitbucket.org is supported at this time", req.ImportPath)
 	}
 
 	provider, organization, repository := importPathParts[0], importPathParts[1], importPathParts[2]
@@ -138,14 +147,7 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 }
 
 func (s *Server) objectExists(ctx context.Context, remotePath string) (exists bool, err error) {
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return false, grpc.Errorf(codes.Unknown, "failed to create storage client: %v remote_path=%s",
-			err, remotePath)
-	}
-	defer client.Close()
-
-	object := client.Bucket(s.bucket).Object(remotePath)
+	object := s.client.Bucket(s.bucket).Object(remotePath)
 	_, err = object.Attrs(ctx)
 	if err == storage.ErrObjectNotExist {
 		return false, nil
@@ -165,14 +167,7 @@ func (s *Server) uploadFile(ctx context.Context, remotePath, localPath string) e
 	}
 	defer src.Close()
 
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to create storage client: %v remote_path=%s local_path=%s",
-			err, remotePath, localPath)
-	}
-	defer client.Close()
-
-	object := client.Bucket(s.bucket).Object(remotePath)
+	object := s.client.Bucket(s.bucket).Object(remotePath)
 	objectWriter := object.NewWriter(ctx)
 	defer objectWriter.Close()
 
