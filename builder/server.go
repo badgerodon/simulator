@@ -160,7 +160,7 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 }
 
 func (s *Server) getHeadCommit(ctx context.Context, ref vcsReference) (string, error) {
-	switch ref.organization {
+	switch ref.provider {
 	case "github.com":
 		u := "https://api.github.com/repos/" + url.PathEscape(ref.organization) +
 			"/" + url.PathEscape(ref.repository) +
