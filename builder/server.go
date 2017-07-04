@@ -3,8 +3,11 @@ package builder
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -19,9 +22,10 @@ import (
 
 	"regexp"
 
+	"os/exec"
+
 	"github.com/badgerodon/grpcsimulator/builder/builderpb"
 	"github.com/cespare/xxhash"
-	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -61,14 +65,18 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 
 	dir := getSafeName(req.ImportPath)
 
-	log.Println(dir)
-
 	tmp, err := ioutil.TempDir(s.workingDir, dir)
 	if err != nil {
-		return nil, grpc.Errorf(codes.Internal, "failed to create temporary directory: %v", err)
+		return nil, grpc.Errorf(codes.Unknown, "failed to create temporary directory: %v", err)
 	}
 
-	repo, err := git.Clone(memory.NewStorage(), osfs.New(tmp), &git.CloneOptions{
+	checkoutPath := filepath.Join(tmp, "src", provider, organization, repository)
+	err = os.MkdirAll(checkoutPath, 0755)
+	if err != nil {
+		return nil, grpc.Errorf(codes.Unknown, "failed to create src folder: %v", err)
+	}
+
+	_, err = git.Clone(memory.NewStorage(), osfs.New(checkoutPath), &git.CloneOptions{
 		URL:           "https://" + url.PathEscape(provider) + "/" + url.PathEscape(organization) + "/" + url.PathEscape(repository) + ".git",
 		ReferenceName: plumbing.ReferenceName("refs/heads/" + req.Branch),
 		SingleBranch:  true,
@@ -78,14 +86,23 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		return nil, grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
 	}
 
-	head, err := repo.Head()
+	binPath := filepath.Join(tmp, "bin")
+	err = os.MkdirAll(binPath, 0755)
 	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to get head commit: %v", err)
+		return nil, grpc.Errorf(codes.Unknown, "failed to create bin folder: %v", err)
 	}
 
-	log.Println(dir, head)
+	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(binPath, "bin.js"), req.ImportPath)
+	cmd.Env = append(cmd.Env, os.Environ()...)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("GOPATH=%s", tmp))
+	bs, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, grpc.Errorf(codes.Unknown, "failed to build code: %v\n%v", err, string(bs))
+	}
 
-	return nil, errors.New("not implemented")
+	return &builderpb.BuildResponse{
+		Location: filepath.Join(binPath, "bin.js"),
+	}, nil
 }
 
 type buildContext struct {
