@@ -3,14 +3,13 @@ package builder
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"gopkg.in/src-d/go-billy.v3/osfs"
 	git "gopkg.in/src-d/go-git.v4"
@@ -25,6 +24,10 @@ import (
 
 	"os/exec"
 
+	"net/http"
+
+	"encoding/json"
+
 	"cloud.google.com/go/storage"
 	"github.com/badgerodon/grpcsimulator/builder/builderpb"
 	"github.com/cespare/xxhash"
@@ -32,6 +35,19 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )
+
+type vcsReference struct {
+	provider     string
+	organization string
+	repository   string
+	branch       string
+}
+
+func (ref vcsReference) gitURL() string {
+	return "https://" + url.PathEscape(ref.provider) +
+		"/" + url.PathEscape(ref.organization) +
+		"/" + url.PathEscape(ref.repository) + ".git"
+}
 
 // A Server builds go programs using gopherjs
 type Server struct {
@@ -66,47 +82,23 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 	if len(importPathParts) < 3 {
 		return nil, grpc.Errorf(codes.InvalidArgument, "invalid import path: %s", req.ImportPath)
 	}
-	if importPathParts[0] != "github.com" && importPathParts[0] != "bitbucket.org" {
-		return nil, grpc.Errorf(codes.InvalidArgument, "invalid import path: %s. only github.com or bitbucket.org is supported at this time", req.ImportPath)
+
+	ref := vcsReference{
+		provider:     importPathParts[0],
+		organization: importPathParts[1],
+		repository:   importPathParts[2],
+		branch:       req.Branch,
 	}
-
-	provider, organization, repository := importPathParts[0], importPathParts[1], importPathParts[2]
-	subfolder := strings.Join(importPathParts[3:], "/")
-
-	log.Printf("building provider=%s organization=%s repository=%s subfolder=%s\n",
-		provider, organization, repository, subfolder)
-
 	dir := getSafeName(req.ImportPath)
 
-	tmp, err := ioutil.TempDir(s.workingDir, dir)
-	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to create temporary directory: %v", err)
-	}
-
-	checkoutPath := filepath.Join(tmp, "src", provider, organization, repository)
-	err = os.MkdirAll(checkoutPath, 0755)
-	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to create src folder: %v", err)
-	}
-
-	repo, err := git.Clone(memory.NewStorage(), osfs.New(checkoutPath), &git.CloneOptions{
-		URL:           "https://" + url.PathEscape(provider) + "/" + url.PathEscape(organization) + "/" + url.PathEscape(repository) + ".git",
-		ReferenceName: plumbing.ReferenceName("refs/heads/" + req.Branch),
-		SingleBranch:  true,
-		Depth:         1,
-	})
-	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
-	}
-
-	head, err := repo.Head()
+	head, err := s.getHeadCommit(ctx, ref)
 	if err != nil {
 		return nil, err
 	}
-	fileName := head.Hash().String() + ".js"
+
+	fileName := head + ".js"
 	remotePath := path.Join(s.folder, dir, fileName)
 	webPath := "https://storage.googleapis.com/" + s.bucket + "/" + s.folder + "/" + dir + "/" + fileName
-
 	exists, err := s.objectExists(ctx, remotePath)
 	if err != nil {
 		return nil, err
@@ -115,6 +107,27 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		return &builderpb.BuildResponse{
 			Location: webPath,
 		}, nil
+	}
+
+	tmp, err := ioutil.TempDir(s.workingDir, dir)
+	if err != nil {
+		return nil, grpc.Errorf(codes.Unknown, "failed to create temporary directory: %v", err)
+	}
+
+	checkoutPath := filepath.Join(tmp, "src", ref.provider, ref.organization, ref.repository)
+	err = os.MkdirAll(checkoutPath, 0755)
+	if err != nil {
+		return nil, grpc.Errorf(codes.Unknown, "failed to create src folder: %v", err)
+	}
+
+	_, err = git.Clone(memory.NewStorage(), osfs.New(checkoutPath), &git.CloneOptions{
+		URL:           ref.gitURL(),
+		ReferenceName: plumbing.ReferenceName("refs/heads/" + req.Branch),
+		SingleBranch:  true,
+		Depth:         1,
+	})
+	if err != nil {
+		return nil, grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
 	}
 
 	binPath := filepath.Join(tmp, "bin")
@@ -144,6 +157,45 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 	return &builderpb.BuildResponse{
 		Location: webPath,
 	}, nil
+}
+
+func (s *Server) getHeadCommit(ctx context.Context, ref vcsReference) (string, error) {
+	switch ref.organization {
+	case "github.com":
+		u := "https://api.github.com/repos/" + url.PathEscape(ref.organization) +
+			"/" + url.PathEscape(ref.repository) +
+			"/git/refs/" + url.PathEscape(ref.branch)
+		req, err := http.NewRequest("GET", u, nil)
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Accept", "application/vnd.github.v3+json")
+		req = req.WithContext(ctx)
+
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return "", err
+		}
+		defer res.Body.Close()
+
+		var obj struct {
+			Ref    string `json:"ref"`
+			URL    string `json:"url"`
+			Object struct {
+				Type string `json:"type"`
+				SHA  string `json:"sha"`
+				URL  string `json:"url"`
+			} `json:"object"`
+		}
+		err = json.NewDecoder(res.Body).Decode(&obj)
+		if err != nil {
+			return "", err
+		}
+
+		return obj.Object.SHA, nil
+	default:
+		return "", errors.New("unsupported provider")
+	}
 }
 
 func (s *Server) objectExists(ctx context.Context, remotePath string) (exists bool, err error) {
@@ -184,13 +236,6 @@ func (s *Server) uploadFile(ctx context.Context, remotePath, localPath string) e
 	}
 
 	return nil
-}
-
-type buildContext struct {
-	sync.Mutex
-	dir        string
-	importPath string
-	branch     string
 }
 
 func getHash(args ...string) string {
