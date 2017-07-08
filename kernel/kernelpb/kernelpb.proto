@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+message SocketRequest {
+
+}
+
+message SocketResult {
+    int64 handle = 1;
+}
+
+message DialRequest {
+    int64 handle = 1;
+    int64 port = 2;
+}
+
+message DialResult {
+    bool success = 1;
+}
+
+message ListenRequest {
+    int64 handle = 1;
+    int64 port = 2;
+}
+
+message ListenResult {
+    bool success = 1;
+}
+
+message CloseRequest {
+    int64 handle = 1;
+}
+
+message CloseResult {
+    bool success = 1;
+}

@@ -2,17 +2,19 @@ package main
 
 import (
 	"log"
+	"net"
 
 	"github.com/badgerodon/grpcsimulator/examples/ping/pb"
-	"github.com/badgerodon/grpcsimulator/mesh"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+
+	_ "github.com/badgerodon/grpcsimulator/kernel"
 )
 
 func main() {
-	li, err := mesh.Listen("test-1")
+	li, err := net.Listen("tcp", "127.0.0.1:7000")
 	if err != nil {
-		log.Fatalln("failed to start mesh listener", err)
+		panic(err)
 	}
 	defer li.Close()
 
