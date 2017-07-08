@@ -1,11 +1,20 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"io"
 	"log"
-	"math/rand"
+	"net"
 	"net/http"
+	"strings"
+
+	"google.golang.org/grpc"
+
+	"github.com/badgerodon/grpcsimulator/builder/builderpb"
+)
+
+var (
+	grpcServer *grpc.Server
 )
 
 func main() {
@@ -16,6 +25,19 @@ func main() {
 }
 
 func run() error {
+	log.SetFlags(0)
+
+	grpcServer = grpc.NewServer()
+	builderpb.RegisterServiceServer(grpcServer, getBuildServer())
+	go func() {
+		li, err := net.Listen("tcp", "127.0.0.1:5001")
+		if err != nil {
+			log.Fatalln(err)
+		}
+		log.Println("starting gRPC server on :5001")
+		grpcServer.Serve(li)
+	}()
+
 	for _, uiPath := range []string{
 		"node_modules/react/dist/react.js",
 		"node_modules/react-dom/dist/react-dom.js",
@@ -24,9 +46,10 @@ func run() error {
 	} {
 		http.Handle("/ui/"+uiPath, makeFileHandler("./ui/"+uiPath))
 	}
-	http.Handle("/api/", http.HandlerFunc(handleAPI))
-	http.Handle("/", http.HandlerFunc(handleUI))
+	http.Handle("/build/", http.HandlerFunc(handleBuild))
+	http.Handle("/", http.HandlerFunc(handleCatchAll))
 
+	log.Println("starting server on :5000")
 	return http.ListenAndServe("127.0.0.1:5000", nil)
 }
 
@@ -36,39 +59,44 @@ func makeFileHandler(filePath string) http.HandlerFunc {
 	}
 }
 
-func handleAPI(res http.ResponseWriter, req *http.Request) {
-	res.Header().Set("Content-Type", "application/json")
-	if rand.Float64() > 0.5 {
-		res.WriteHeader(500)
-		json.NewEncoder(res).Encode(struct {
-			Error string `json:"error"`
-		}{
-			Error: "randomly failing",
-		})
+func handleBuild(w http.ResponseWriter, r *http.Request) {
+	importPath := r.URL.Path[len("/build/"):]
+	branch := r.URL.Query().Get("branch")
+	if branch == "" {
+		branch = "master"
+	}
+
+	cc, err := grpc.Dial("127.0.0.1:5001", grpc.WithInsecure())
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	defer cc.Close()
+
+	c := builderpb.NewServiceClient(cc)
+	res, err := c.Build(context.Background(), &builderpb.BuildRequest{
+		ImportPath: importPath,
+		Branch:     branch,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	switch req.URL.Path {
-	case "/api/projects":
-		type Project struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		}
-		type ProjectListResponse struct {
-			Projects []Project `json:"projects"`
-		}
-		json.NewEncoder(res).Encode(&ProjectListResponse{
-			Projects: []Project{
-				{ID: "helloworld", Name: "Hello World"},
-			},
-		})
-	default:
-		http.Error(res, "not found", 404)
-	}
+	http.Redirect(w, r, res.Location, http.StatusTemporaryRedirect)
 }
 
-func handleUI(res http.ResponseWriter, req *http.Request) {
-	io.WriteString(res, `<!DOCTYPE html>
+func handleCatchAll(w http.ResponseWriter, r *http.Request) {
+	log.Println("HANDLE", r.URL, r.Header)
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+		grpcServer.ServeHTTP(w, r)
+		return
+	}
+	handleUI(w, r)
+}
+
+func handleUI(w http.ResponseWriter, r *http.Request) {
+	io.WriteString(w, `<!DOCTYPE html>
 <html>
 	<head>
 		<meta charset="UTF-8" />

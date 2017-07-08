@@ -1,75 +1,22 @@
-package main
+package builder
 
-import "html/template"
+import (
+	"html/template"
+	"os"
+	"path/filepath"
+)
 
 var (
-	mainTemplate = template.Must(template.New("").Parse(`// +build !js
-
-package main
+	initTemplate = template.Must(template.New("").Parse(`package main
 
 import (
-    "google.golang.org/grpc"
-    "net"
-)
-
-import pb1 "github.com/badgerodon/grpcsimulator/examples/ping/pb"
-import impl "github.com/badgerodon/grpcsimulator/examples/ping"
-
-func main() {
-    li, err := net.Listen("tcp", "127.0.0.1:5000")
-    if err != nil {
-        panic(err)
-    }
-    defer li.Close()
-
-    server := grpc.NewServer()
-    pb1.RegisterPingServiceServer(server, impl.New())
-    err = server.Serve(li)
-    if err != nil {
-        panic(err)
-    }
-}
-`))
-
-	mainJSTemplate = template.Must(template.New("").Parse(`// +build js
-
-package main
-
-import (
-    "google.golang.org/grpc"
-    "net"
-)
-
-import pb1 "github.com/badgerodon/grpcsimulator/examples/ping/pb"
-import impl "github.com/badgerodon/grpcsimulator/examples/ping"
-
-func main() {
-    li, err := net.Listen("tcp", "127.0.0.1:5000")
-    if err != nil {
-        panic(err)
-    }
-    defer li.Close()
-
-    server := grpc.NewServer()
-    pb1.RegisterPingServiceServer(server, impl.New())
-    err = server.Serve(li)
-    if err != nil {
-        panic(err)
-    }
-}
-`))
-	envJSTemplate = template.Must(template.New("").Parse(`// +build js
-package main
-
-import (
-    "strings"
-    "os"
     "fmt"
-    "github.com/cathalgarvey/fmtless/net/url"
     "github.com/gopherjs/gopherjs/js"
+	"net/url"
+    "strings"
 )
 
-func init() {
+func main() {
     u, _ := url.Parse(js.Global.Get("location").Get("href").String())
     for k, vs := range u.Query() {
         os.Setenv(k, strings.Join(vs, ","))
@@ -78,3 +25,26 @@ func init() {
 }
 `))
 )
+
+func writeFiles(projectDir string) error {
+	err := os.MkdirAll(projectDir, 0777)
+	if err != nil {
+		return err
+	}
+
+	for name, tpl := range map[string]*template.Template{
+		"simulator_init.go": initTemplate,
+	} {
+		f, err := os.Create(filepath.Join(projectDir, name))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		err = tpl.Execute(f, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message BuildRequest {
+    string import_path = 1;
+    string branch = 2;
+}
+
+message BuildResponse {
+    string location = 1;
+}
+
+service Service {
+    rpc Build(BuildRequest) returns (BuildResponse);
+}
