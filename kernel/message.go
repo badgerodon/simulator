@@ -1,8 +1,8 @@
 package kernel
 
 import (
+	"context"
 	"fmt"
-	"math"
 	"net"
 	"time"
 
@@ -22,13 +22,15 @@ func newMessagePortListener(networkPort int, messagePort *js.Object) *messagePor
 		incoming:    make(chan net.Conn, 64),
 	}
 	l.messagePort.Set("onmessage", func(evt *js.Object) {
+		js.Global.Get("console").Call("log", "listen message", evt.Get("data"))
 		method := evt.Get("data").Index(0).String()
 		switch method {
 		case "close":
 			l.Close()
 		case "connection":
-			connMessagePort := evt.Get("data").Index(1)
-			conn := newMessagePortConn(l.networkPort, -1, connMessagePort)
+			connPort := evt.Get("data").Index(1).Int()
+			connMessagePort := evt.Get("data").Index(2)
+			conn := newAckedMessagePortConn(l.networkPort, connPort, connMessagePort)
 			select {
 			case l.incoming <- conn:
 			default:
@@ -66,44 +68,70 @@ type messagePortConn struct {
 	dstPort     int
 	messagePort *js.Object
 
-	r *ChannelReader
-	w *ChannelWriter
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	readCtx, writeCtx       context.Context
+	readCancel, writeCancel context.CancelFunc
+
+	qr *inOrderQueueReader
+	qw *queue
 }
 
 func newMessagePortConn(srcPort, dstPort int, messagePort *js.Object) *messagePortConn {
-	recv := make(chan []byte, math.MaxInt32)
-	send := make(chan []byte, math.MaxInt32)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	send := newQueue()
+	recv := newInOrderQueue()
 
 	c := &messagePortConn{
 		srcPort:     srcPort,
 		dstPort:     dstPort,
 		messagePort: messagePort,
 
-		r: NewChannelReader(recv),
-		w: NewChannelWriter(send),
+		ctx:    ctx,
+		cancel: cancel,
+
+		readCtx:  ctx,
+		writeCtx: ctx,
+
+		qr: newInOrderQueueReader(recv),
+		qw: send,
 	}
 	go func() {
-		for data := range send {
-			buf := js.NewArrayBuffer(data)
+		defer func() {
+			c.messagePort.Call("close")
+		}()
+		var counter uint16
+		for {
+			msg, err := send.dequeue(c.ctx)
+			if err != nil {
+				return
+			}
+			fmt.Printf("send %05d:%05d %04d %x\n", c.srcPort, c.dstPort, counter, msg)
+			buf := js.NewArrayBuffer(msg)
 			c.messagePort.Call("postMessage", []interface{}{
 				"message",
+				counter,
 				buf,
 			}, []interface{}{
 				buf,
 			})
+			counter++
 		}
 	}()
+
 	c.messagePort.Set("onmessage", func(evt *js.Object) {
+		//js.Global.Get("console").Call("log", fmt.Sprintf("conn %v:%v message", c.srcPort, c.dstPort), evt.Get("data"))
 		method := evt.Get("data").Index(0).String()
 		switch method {
 		case "close":
 			c.Close()
 		case "message":
-			data := evt.Get("data").Index(1).Interface().([]byte)
-			select {
-			case recv <- data:
-			default:
-			}
+			counter := uint16(evt.Get("data").Index(1).Int())
+			msg := toBytes(evt.Get("data").Index(2))
+			fmt.Printf("recv %05d:%05d %04d %x\n", c.srcPort, c.dstPort, counter, msg)
+			recv.enqueue(counter, msg)
 		default:
 			panic(fmt.Sprintf("method %s is not implemented", method))
 		}
@@ -112,16 +140,28 @@ func newMessagePortConn(srcPort, dstPort int, messagePort *js.Object) *messagePo
 }
 
 func (c *messagePortConn) Read(b []byte) (n int, err error) {
-	return c.r.Read(b)
+	return c.qr.Read(c.readCtx, b)
 }
 
 func (c *messagePortConn) Write(b []byte) (n int, err error) {
-	return c.w.Write(b)
+	c.qw.enqueue(b)
+	return len(b), nil
 }
 
 func (c *messagePortConn) Close() error {
-	c.messagePort.Call("postMessage", []interface{}{"close"})
-	c.messagePort.Call("close")
+	panic("CLOSE!")
+	if c.readCancel != nil {
+		c.readCancel()
+		c.readCancel = nil
+	}
+	if c.writeCancel != nil {
+		c.writeCancel()
+		c.writeCancel = nil
+	}
+	if c.cancel != nil {
+		c.cancel()
+		c.cancel = nil
+	}
 	return nil
 }
 
@@ -134,17 +174,37 @@ func (c *messagePortConn) RemoteAddr() net.Addr {
 }
 
 func (c *messagePortConn) SetDeadline(t time.Time) error {
-	c.r.SetDeadline(t)
-	c.w.SetDeadline(t)
+	c.SetReadDeadline(t)
+	c.SetWriteDeadline(t)
 	return nil
 }
 
 func (c *messagePortConn) SetReadDeadline(t time.Time) error {
-	c.r.SetDeadline(t)
+	if c.readCancel != nil {
+		c.readCancel()
+	}
+	if t.IsZero() {
+		c.readCtx = c.ctx
+		c.readCancel = nil
+	} else {
+		c.readCtx, c.readCancel = context.WithDeadline(c.ctx, t)
+	}
 	return nil
 }
 
 func (c *messagePortConn) SetWriteDeadline(t time.Time) error {
-	c.w.SetDeadline(t)
+	if c.writeCancel != nil {
+		c.writeCancel()
+	}
+	if t.IsZero() {
+		c.writeCtx = c.ctx
+		c.writeCancel = nil
+	} else {
+		c.writeCtx, c.writeCancel = context.WithDeadline(c.ctx, t)
+	}
 	return nil
+}
+
+func toBytes(obj *js.Object) []byte {
+	return js.Global.Get("Uint8Array").New(obj).Interface().([]byte)
 }

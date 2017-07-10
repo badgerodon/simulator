@@ -1,4 +1,4 @@
-package meshpb
+package routerpb
 
 import (
 	"encoding/binary"
@@ -7,7 +7,7 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-//go:generate protoc meshpb.proto --go_out=plugins=grpc:.
+//go:generate protoc routerpb.proto --go_out=plugins=grpc:.
 
 // Read reads a length-prefixed protobuf message from the reader
 func Read(r io.Reader, msg proto.Message) error {

@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+message DialRequest {
+    string protocol = 1;
+    string address = 2;
+}
+
+message DialResult {
+    int64 handle = 1;
+}
+
+message ListenRequest {
+    string protocol = 1;
+    string address = 2;
+}
+
+message ListenResult {
+    int64 handle = 1;
+}
+
+message Data {
+    int64 handle = 1;
+    bytes data = 2;
+}
+
+message Message {
+    oneof message {
+        DialRequest dial_request = 1;
+        DialResult dial_result = 2;
+        ListenRequest listen_request = 3;
+        ListenResult listen_result = 4;
+        Data data = 5;
+    }
+}

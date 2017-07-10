@@ -3,6 +3,7 @@ package kernel
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -100,4 +101,136 @@ func (w *ChannelWriter) Write(b []byte) (sz int, err error) {
 // SetDeadline sets the deadline to write to the channel
 func (w *ChannelWriter) SetDeadline(t time.Time) {
 	w.deadline = t
+}
+
+type queue struct {
+	signal chan struct{}
+
+	mu sync.Mutex
+	q  [][]byte
+}
+
+func newQueue() *queue {
+	return &queue{
+		signal: make(chan struct{}, 1),
+	}
+}
+
+func (q *queue) enqueue(msg []byte) {
+	q.mu.Lock()
+	q.q = append(q.q, msg)
+	q.mu.Unlock()
+
+	select {
+	case q.signal <- struct{}{}:
+	default:
+	}
+}
+
+func (q *queue) dequeue(ctx context.Context) ([]byte, error) {
+	for {
+		var msg []byte
+		q.mu.Lock()
+		if len(q.q) > 0 {
+			msg = q.q[0]
+			q.q = q.q[1:]
+		}
+		q.mu.Unlock()
+
+		if msg != nil {
+			return msg, nil
+		}
+
+		select {
+		case <-q.signal:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+type inOrderQueue struct {
+	signal chan struct{}
+
+	mu sync.Mutex
+	q  map[uint16][]byte
+}
+
+func newInOrderQueue() *inOrderQueue {
+	return &inOrderQueue{
+		signal: make(chan struct{}, 1),
+		q:      make(map[uint16][]byte),
+	}
+}
+
+func (q *inOrderQueue) enqueue(id uint16, msg []byte) {
+	q.mu.Lock()
+	q.q[id] = msg
+	q.mu.Unlock()
+
+	select {
+	case q.signal <- struct{}{}:
+	default:
+	}
+}
+
+func (q *inOrderQueue) dequeue(ctx context.Context, id uint16) ([]byte, error) {
+	for {
+		q.mu.Lock()
+		msg, ok := q.q[id]
+		if ok {
+			delete(q.q, id)
+		}
+		q.mu.Unlock()
+
+		if ok {
+			return msg, nil
+		}
+
+		select {
+		case <-q.signal:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+type inOrderQueueReader struct {
+	q       *inOrderQueue
+	buf     []byte
+	counter uint16
+}
+
+func newInOrderQueueReader(q *inOrderQueue) *inOrderQueueReader {
+	return &inOrderQueueReader{
+		q: q,
+	}
+}
+
+func (r *inOrderQueueReader) Read(ctx context.Context, b []byte) (sz int, err error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+
+	for {
+		if len(r.buf) > 0 {
+			if len(r.buf) <= len(b) {
+				sz = len(r.buf)
+				copy(b, r.buf)
+				r.buf = nil
+			} else {
+				sz = len(b)
+				copy(b, r.buf)
+				r.buf = r.buf[len(b):]
+			}
+			return sz, nil
+		}
+
+		var err error
+		r.buf, err = r.q.dequeue(ctx, r.counter)
+		if err != nil {
+			return 0, err
+		}
+		r.counter++
+	}
 }

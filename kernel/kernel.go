@@ -19,13 +19,20 @@ func (a addr) String() string {
 	return fmt.Sprint(a.networkPort)
 }
 
+type kernel interface {
+	Dial(networkPort int) (net.Conn, error)
+	Listen(networkPort int) (net.Listener, error)
+}
+
 type coreKernel struct {
 	listeners map[int]*js.Object
+	nextPort  int
 }
 
 func newCoreKernel() *coreKernel {
 	return &coreKernel{
 		listeners: make(map[int]*js.Object),
+		nextPort:  10000,
 	}
 }
 
@@ -35,13 +42,15 @@ func (k *coreKernel) Dial(networkPort int) (net.Conn, error) {
 		return nil, fmt.Errorf("unavailable")
 	}
 	obj := js.Global.Get("MessageChannel").New()
-	conn := newMessagePortConn(-1, networkPort, obj.Get("port1"))
+	conn := newAckedMessagePortConn(k.nextPort, networkPort, obj.Get("port1"))
 	liPort.Call("postMessage", []interface{}{
 		"connection",
+		k.nextPort,
 		obj.Get("port2"),
 	}, []interface{}{
 		obj.Get("port2"),
 	})
+	k.nextPort++
 	return conn, nil
 }
 
@@ -57,3 +66,5 @@ func (k *coreKernel) Listen(networkPort int) (net.Listener, error) {
 	k.listeners[networkPort] = port2
 	return li, nil
 }
+
+var defaultKernel kernel
