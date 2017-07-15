@@ -8,7 +8,11 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"syscall"
 	"time"
+
+	"github.com/gopherjs/gopherjs/js"
+	"github.com/gopherjs/jsbuiltin"
 )
 
 func init() {
@@ -64,6 +68,10 @@ func init() {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
+	syscall.DefaultReadFunction = k.Read
+	syscall.DefaultWriteFunction = k.Write
+
+	js.Global.Get("console").Call("log", jsbuiltin.InstanceOf(js.Global.Get("self"), js.Global.Get("Worker")))
 }
 
 func allowHost(host string) bool {

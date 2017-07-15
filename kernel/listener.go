@@ -13,13 +13,15 @@ type messagePortListener struct {
 	messagePort *js.Object
 	networkPort int
 	incoming    chan net.Conn
+	onClose     func()
 }
 
-func newMessagePortListener(networkPort int, messagePort *js.Object) *messagePortListener {
+func newMessagePortListener(networkPort int, messagePort *js.Object, onClose func()) *messagePortListener {
 	l := &messagePortListener{
 		messagePort: messagePort,
 		networkPort: networkPort,
 		incoming:    make(chan net.Conn, 64),
+		onClose:     onClose,
 	}
 	l.messagePort.Set("onmessage", func(evt *js.Object) {
 		js.Global.Get("console").Call("log", "listen message", evt.Get("data"))
@@ -30,7 +32,7 @@ func newMessagePortListener(networkPort int, messagePort *js.Object) *messagePor
 		case "connection":
 			connPort := evt.Get("data").Index(1).Int()
 			connMessagePort := evt.Get("data").Index(2)
-			conn := newAckedMessagePortConn(l.networkPort, connPort, connMessagePort)
+			conn := newAckedMessagePortConn(l.networkPort, connPort, connMessagePort, nil)
 			select {
 			case l.incoming <- conn:
 			default:
@@ -56,6 +58,10 @@ func (l *messagePortListener) Close() error {
 		l.messagePort.Call("close")
 	}
 	l.messagePort = nil
+	if l.onClose != nil {
+		l.onClose()
+		l.onClose = nil
+	}
 	return nil
 }
 

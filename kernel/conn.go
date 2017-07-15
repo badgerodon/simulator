@@ -13,17 +13,19 @@ type ackedMessagePortConn struct {
 	srcPort     int
 	dstPort     int
 	messagePort *js.Object
+	onClose     func()
 
 	ack  chan struct{}
 	recv chan []byte
 	rdr  *ChannelReader
 }
 
-func newAckedMessagePortConn(srcPort, dstPort int, messagePort *js.Object) *ackedMessagePortConn {
+func newAckedMessagePortConn(srcPort, dstPort int, messagePort *js.Object, onClose func()) *ackedMessagePortConn {
 	c := &ackedMessagePortConn{
 		srcPort:     srcPort,
 		dstPort:     dstPort,
 		messagePort: messagePort,
+		onClose:     onClose,
 
 		ack:  make(chan struct{}, 1),
 		recv: make(chan []byte, math.MaxInt16),
@@ -74,7 +76,11 @@ func (c *ackedMessagePortConn) Write(b []byte) (n int, err error) {
 }
 
 func (c *ackedMessagePortConn) Close() error {
-	panic("CLOSE!")
+	if c.onClose != nil {
+		c.onClose()
+		c.onClose = nil
+	}
+	return nil
 }
 
 func (c *ackedMessagePortConn) LocalAddr() net.Addr {
