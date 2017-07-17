@@ -79,6 +79,7 @@ func handleBuild(w http.ResponseWriter, r *http.Request) {
 		Branch:     branch,
 	})
 	if err != nil {
+		log.Printf("failed to build: %v\n", err)
 		http.Error(w, err.Error(), 500)
 		return
 	}

@@ -1,11 +1,13 @@
 package builder
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,6 +33,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/badgerodon/grpcsimulator/builder/builderpb"
 	"github.com/cespare/xxhash"
+	"github.com/google/brotli/go/cbrotli"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -96,6 +99,8 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		return nil, err
 	}
 
+	log.Println("BUILDING", head, ref)
+
 	fileName := head + ".js"
 	remotePath := path.Join(s.folder, dir, fileName)
 	webPath := "https://storage.googleapis.com/" + s.bucket + "/" + s.folder + "/" + dir + "/" + fileName
@@ -137,8 +142,15 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 	}
 
 	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(binPath, fileName), req.ImportPath)
-	cmd.Env = append(cmd.Env, os.Environ()...)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("GOPATH=%s", tmp))
+	gopaths := []string{tmp}
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "GOPATH=") {
+			gopaths = append([]string{e[7:]}, gopaths...)
+		} else {
+			cmd.Env = append(cmd.Env, e)
+		}
+	}
+	cmd.Env = append(cmd.Env, fmt.Sprintf("GOPATH=%s", strings.Join(gopaths, ":")))
 	bs, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, grpc.Errorf(codes.Unknown, "failed to build code: %v\n%v", err, string(bs))
@@ -162,9 +174,11 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 func (s *Server) getHeadCommit(ctx context.Context, ref vcsReference) (string, error) {
 	switch ref.provider {
 	case "github.com":
-		u := "https://api.github.com/repos/" + url.PathEscape(ref.organization) +
+		u := "https://api.github.com/repos" +
+			"/" + url.PathEscape(ref.organization) +
 			"/" + url.PathEscape(ref.repository) +
-			"/git/refs/" + url.PathEscape(ref.branch)
+			"/branches" +
+			"/" + url.PathEscape(ref.branch)
 		req, err := http.NewRequest("GET", u, nil)
 		if err != nil {
 			return "", err
@@ -178,21 +192,19 @@ func (s *Server) getHeadCommit(ctx context.Context, ref vcsReference) (string, e
 		}
 		defer res.Body.Close()
 
+		var tmp bytes.Buffer
+
 		var obj struct {
-			Ref    string `json:"ref"`
-			URL    string `json:"url"`
-			Object struct {
-				Type string `json:"type"`
-				SHA  string `json:"sha"`
-				URL  string `json:"url"`
-			} `json:"object"`
+			Commit struct {
+				SHA string `json:"sha"`
+			} `json:"commit"`
 		}
-		err = json.NewDecoder(res.Body).Decode(&obj)
+		err = json.NewDecoder(io.TeeReader(res.Body, &tmp)).Decode(&obj)
 		if err != nil {
-			return "", err
+			return "", grpc.Errorf(codes.Unknown, "failed to find commit: %v\n%s", err, tmp.String())
 		}
 
-		return obj.Object.SHA, nil
+		return obj.Commit.SHA, nil
 	default:
 		return "", errors.New("unsupported provider")
 	}
@@ -223,7 +235,22 @@ func (s *Server) uploadFile(ctx context.Context, remotePath, localPath string) e
 	objectWriter := object.NewWriter(ctx)
 	defer objectWriter.Close()
 
-	_, err = io.Copy(objectWriter, src)
+	objectWriter.CacheControl = "max-age=31556926"
+	objectWriter.ContentType = "text/javascript"
+	objectWriter.ContentEncoding = "br"
+
+	brWriter := cbrotli.NewWriter(objectWriter, cbrotli.WriterOptions{
+		Quality: 11,
+	})
+	defer brWriter.Close()
+
+	_, err = io.Copy(brWriter, src)
+	if err != nil {
+		return grpc.Errorf(codes.Unknown, "failed to upload file: %v remote_path=%s local_path=%s",
+			err, remotePath, localPath)
+	}
+
+	err = brWriter.Close()
 	if err != nil {
 		return grpc.Errorf(codes.Unknown, "failed to upload file: %v remote_path=%s local_path=%s",
 			err, remotePath, localPath)

@@ -15,7 +15,7 @@ func getBuildServer() *builder.Server {
 		os.MkdirAll(working, 0755)
 	}
 	log.Println("builder working directory:", working)
-	server, err := builder.NewServer(working, "doxsey-1", "badgerodon-gosimulator", "dev")
+	server, err := builder.NewServer(working, "badgerodon-173120", "gosimulator-build", "dev")
 	if err != nil {
 		log.Fatalln(err)
 	}
