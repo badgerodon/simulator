@@ -10,8 +10,7 @@ import (
 )
 
 type ackedMessagePortConn struct {
-	srcPort     int
-	dstPort     int
+	src, dst    Handle
 	messagePort *js.Object
 	onClose     func()
 
@@ -20,10 +19,10 @@ type ackedMessagePortConn struct {
 	rdr  *ChannelReader
 }
 
-func newAckedMessagePortConn(srcPort, dstPort int, messagePort *js.Object, onClose func()) *ackedMessagePortConn {
+func newAckedMessagePortConn(src, dst Handle, messagePort *js.Object, onClose func()) *ackedMessagePortConn {
 	c := &ackedMessagePortConn{
-		srcPort:     srcPort,
-		dstPort:     dstPort,
+		src:         src,
+		dst:         dst,
 		messagePort: messagePort,
 		onClose:     onClose,
 
@@ -84,11 +83,11 @@ func (c *ackedMessagePortConn) Close() error {
 }
 
 func (c *ackedMessagePortConn) LocalAddr() net.Addr {
-	return addr{c.srcPort}
+	return c.src
 }
 
 func (c *ackedMessagePortConn) RemoteAddr() net.Addr {
-	return addr{c.dstPort}
+	return c.dst
 }
 
 func (c *ackedMessagePortConn) SetDeadline(t time.Time) error {

@@ -7,14 +7,14 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/badgerodon/grpcsimulator/examples/ping/pb"
-	"github.com/badgerodon/grpcsimulator/mesh"
+
+	_ "github.com/badgerodon/grpcsimulator/kernel"
 )
 
 func main() {
 	log.SetFlags(0)
 
-	conn, err := grpc.Dial("test-1",
-		grpc.WithDialer(mesh.Dial),
+	conn, err := grpc.Dial("127.0.0.1:7000",
 		grpc.WithInsecure())
 	if err != nil {
 		log.Fatalln(err)

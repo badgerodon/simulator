@@ -1,5 +1,3 @@
-// +build js
-
 package kernel
 
 import (
@@ -16,7 +14,13 @@ import (
 )
 
 func init() {
-	k := newCoreKernel()
+	if js.Global.Get("DedicatedWorkerGlobalScope").Bool() &&
+		jsbuiltin.InstanceOf(js.Global.Get("self"), js.Global.Get("DedicatedWorkerGlobalScope")) {
+		defaultKernel = newWebWorkerKernel(NewRPCMessageChannelClient(js.Global.Get("self")))
+	} else {
+		defaultKernel = newCoreKernel()
+	}
+
 	net.DefaultDialContextFunction = func(ctx context.Context, network, address string) (net.Conn, error) {
 		switch network {
 		case "tcp", "tcp4":
@@ -31,11 +35,10 @@ func init() {
 			if err != nil {
 				return nil, fmt.Errorf("invalid port: %v, %v", err, port)
 			}
-			return k.Dial(iport)
+			return defaultKernel.Dial(Handle(iport))
 		default:
 			return nil, fmt.Errorf("only tcp is supported")
 		}
-		return nil, fmt.Errorf("not implemented")
 	}
 	net.DefaultListenFunction = func(network, address string) (net.Listener, error) {
 		switch network {
@@ -51,11 +54,10 @@ func init() {
 			if err != nil {
 				return nil, fmt.Errorf("invalid port: %v, %v", err, port)
 			}
-			return k.Listen(iport)
+			return defaultKernel.Listen(Handle(iport))
 		default:
 			return nil, fmt.Errorf("only tcp is supported")
 		}
-		return nil, fmt.Errorf("not implemented")
 	}
 	http.DefaultTransport = &http.Transport{
 		DialContext: (&net.Dialer{
@@ -68,10 +70,13 @@ func init() {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
-	syscall.DefaultReadFunction = k.Read
-	syscall.DefaultWriteFunction = k.Write
+	syscall.DefaultReadFunction = func(fd uintptr, b []byte) (int, error) {
+		return defaultKernel.Read(Handle(fd), b)
+	}
+	syscall.DefaultWriteFunction = func(fd uintptr, b []byte) (int, error) {
+		return defaultKernel.Write(Handle(fd), b)
+	}
 
-	js.Global.Get("console").Call("log", jsbuiltin.InstanceOf(js.Global.Get("self"), js.Global.Get("Worker")))
 }
 
 func allowHost(host string) bool {

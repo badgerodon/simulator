@@ -19,7 +19,7 @@ func main() {
 		for {
 			conn, err := li.Accept()
 			if err != nil {
-				panic(err)
+				panic("failed to accept connection:" + err.Error())
 			}
 
 			s := bufio.NewScanner(conn)
@@ -31,7 +31,7 @@ func main() {
 
 	conn, err := net.Dial("tcp", "127.0.0.1:7000")
 	if err != nil {
-		panic(err)
+		panic("failed to dial server:" + err.Error())
 	}
 	defer conn.Close()
 
