@@ -31,19 +31,20 @@ COPY build.go .
 COPY main.go .
 COPY builder/ ./builder
 COPY vendor/ ./vendor
+COPY ui/dist ./ui/dist
 RUN go build -o /root/bin/app .
 
 
 FROM base as runner
 RUN apk --no-cache add ca-certificates
-WORKDIR /root
 ENV GOPATH /root
-ENV GOOGLE_APPLICATION_CREDENTIALS /root/gcloud.credentials
+ENV GOOGLE_APPLICATION_CREDENTIALS=""
 ENV PORT=80
 COPY --from=builder /root/bin/app /root/bin/app
 COPY --from=builder /root/bin/gopherjs /root/bin/gopherjs
 COPY --from=builder /root/src/github.com/gopherjs/gopherjs /root/src/github.com/gopherjs/gopherjs
 COPY --from=builder /root/src/github.com/badgerodon/grpcsimulator /root/src/github.com/badgerodon/grpcsimulator
+WORKDIR /root/src/github.com/badgerodon/grpcsimulator
 CMD ["/root/bin/app"]
 
 
