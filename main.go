@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -49,8 +50,9 @@ func run() error {
 	http.Handle("/build/", http.HandlerFunc(handleBuild))
 	http.Handle("/", http.HandlerFunc(handleCatchAll))
 
-	log.Println("starting server on :5000")
-	return http.ListenAndServe("127.0.0.1:5000", nil)
+	port := os.Getenv("PORT")
+	log.Println("starting server on :" + port)
+	return http.ListenAndServe(":"+port, nil)
 }
 
 func makeFileHandler(filePath string) http.HandlerFunc {
