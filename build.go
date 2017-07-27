@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/badgerodon/grpcsimulator/builder"
+	"github.com/badgerodon/simulator/builder"
 )
 
 func getBuildServer() *builder.Server {

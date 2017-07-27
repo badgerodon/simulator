@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	_ "github.com/badgerodon/grpcsimulator/kernel"
+	_ "github.com/badgerodon/simulator/kernel"
 )
 
 func main() {

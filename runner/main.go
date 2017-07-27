@@ -5,7 +5,7 @@ package main
 import (
 	"log"
 
-	"github.com/badgerodon/grpcsimulator/mesh"
+	"github.com/badgerodon/simulator/mesh"
 )
 
 func main() {

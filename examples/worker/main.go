@@ -1,12 +1,12 @@
 package main
 
-import "github.com/badgerodon/grpcsimulator/kernel"
+import "github.com/badgerodon/simulator/kernel"
 
 func main() {
-	kernel.StartProcess("/github.com/badgerodon/grpcsimulator/examples/ping/client/client.js", []string{
+	kernel.StartProcess("/github.com/badgerodon/simulator/examples/ping/client/client.js", []string{
 		"TEST=1",
 	})
-	kernel.StartProcess("/github.com/badgerodon/grpcsimulator/examples/ping/server/server.js", []string{
+	kernel.StartProcess("/github.com/badgerodon/simulator/examples/ping/server/server.js", []string{
 		"TEST=1",
 	})
 }

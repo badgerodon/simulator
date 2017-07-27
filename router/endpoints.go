@@ -6,7 +6,7 @@ package router
 // 	"os"
 // 	"time"
 
-// 	"github.com/badgerodon/grpcsimulator/mesh/meshpb"
+// 	"github.com/badgerodon/simulator/mesh/meshpb"
 // 	"github.com/hashicorp/yamux"
 // )
 

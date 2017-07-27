@@ -31,7 +31,7 @@ import (
 	"encoding/json"
 
 	"cloud.google.com/go/storage"
-	"github.com/badgerodon/grpcsimulator/builder/builderpb"
+	"github.com/badgerodon/simulator/builder/builderpb"
 	"github.com/cespare/xxhash"
 	"github.com/google/brotli/go/cbrotli"
 	"golang.org/x/net/context"

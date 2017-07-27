@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/badgerodon/grpcsimulator/mesh"
+	"github.com/badgerodon/simulator/mesh"
 	"github.com/gopherjs/gopherjs/js"
 )
 

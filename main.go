@@ -11,7 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/badgerodon/grpcsimulator/builder/builderpb"
+	"github.com/badgerodon/simulator/builder/builderpb"
 )
 
 var (

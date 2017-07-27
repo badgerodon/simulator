@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/badgerodon/grpcsimulator/router/routerpb"
+	"github.com/badgerodon/simulator/router/routerpb"
 	"github.com/gopherjs/gopherjs/js"
 )
 

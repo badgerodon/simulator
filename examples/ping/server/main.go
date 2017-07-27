@@ -4,11 +4,11 @@ import (
 	"log"
 	"net"
 
-	"github.com/badgerodon/grpcsimulator/examples/ping/pb"
+	"github.com/badgerodon/simulator/examples/ping/pb"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	_ "github.com/badgerodon/grpcsimulator/kernel"
+	_ "github.com/badgerodon/simulator/kernel"
 )
 
 func main() {

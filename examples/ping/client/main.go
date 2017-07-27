@@ -6,9 +6,9 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/badgerodon/grpcsimulator/examples/ping/pb"
+	"github.com/badgerodon/simulator/examples/ping/pb"
 
-	_ "github.com/badgerodon/grpcsimulator/kernel"
+	_ "github.com/badgerodon/simulator/kernel"
 )
 
 func main() {
