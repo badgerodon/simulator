@@ -7,7 +7,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"unicode"
 
 	"google.golang.org/grpc"
 
@@ -51,6 +53,9 @@ func run() error {
 	http.Handle("/", http.HandlerFunc(handleCatchAll))
 
 	port := os.Getenv("PORT")
+	if port == "" {
+		port = "5000"
+	}
 	log.Println("starting server on :" + port)
 	return http.ListenAndServe(":"+port, nil)
 }
@@ -86,15 +91,72 @@ func handleBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, res.Location, http.StatusTemporaryRedirect)
+	location := res.GetLocation()
+	http.Redirect(w, r, location[len(builderDataDir):], http.StatusTemporaryRedirect)
+
+	// if strings.HasSuffix(r.URL.Path, ".map") {
+	// 	location += ".map"
+	// }
+
+	// f, err := os.Open(location)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), 500)
+	// 	return
+	// }
+	// defer f.Close()
+
+	// var out io.WriteCloser = nopWriteCloser{w}
+	// switch {
+	// case acceptsBrotli(r):
+	// 	w.Header().Set("Content-Encoding", "br")
+	// 	out = cbrotli.NewWriter(out, cbrotli.WriterOptions{
+	// 		Quality: 6,
+	// 	})
+	// }
+
+	// log.Println("RESULT", location)
+
+	// w.Header().Set("Content-Type", "text/javascript")
+	// io.Copy(out, f)
+	// out.Close()
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (w nopWriteCloser) Close() error {
+	return nil
+}
+
+func acceptsBrotli(r *http.Request) bool {
+	fs := strings.FieldsFunc(r.Header.Get("Accept-Encoding"), func(r rune) bool {
+		return unicode.IsSpace(r) || r == ','
+	})
+	for _, f := range fs {
+		if f == "br" {
+			return true
+		}
+	}
+	return false
 }
 
 func handleCatchAll(w http.ResponseWriter, r *http.Request) {
 	log.Println("HANDLE", r.URL, r.Header)
+	if strings.HasSuffix(r.URL.Path, ".js") ||
+		strings.HasSuffix(r.URL.Path, ".map") {
+		builderPath := filepath.Join(builderDataDir, r.URL.Path)
+		if _, err := os.Stat(builderPath); err == nil {
+			http.ServeFile(w, r, builderPath)
+			return
+		}
+	}
+
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 		grpcServer.ServeHTTP(w, r)
 		return
 	}
+
 	handleUI(w, r)
 }
 

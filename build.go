@@ -8,14 +8,19 @@ import (
 	"github.com/badgerodon/simulator/builder"
 )
 
-func getBuildServer() *builder.Server {
-	working := os.Getenv("BUILDER_WORKING_DIR")
-	if working == "" {
-		working = filepath.Join(os.TempDir(), "builder-data")
-		os.MkdirAll(working, 0755)
+var builderDataDir string
+
+func init() {
+	builderDataDir = os.Getenv("BUILDER_DATA_DIR")
+	if builderDataDir == "" {
+		builderDataDir = filepath.Join(os.TempDir(), "builder-data")
+		os.MkdirAll(builderDataDir, 0755)
 	}
-	log.Println("builder working directory:", working)
-	server, err := builder.NewServer(working, "badgerodon-173120", "gosimulator-build", "dev")
+}
+
+func getBuildServer() *builder.Server {
+	log.Println("builder working directory:", builderDataDir)
+	server, err := builder.NewServer(builderDataDir)
 	if err != nil {
 		log.Fatalln(err)
 	}

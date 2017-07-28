@@ -4,39 +4,31 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
-	"path"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/badgerodon/simulator/builder/builderpb"
+	"golang.org/x/net/context"
+	"golang.org/x/sync/singleflight"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"gopkg.in/src-d/go-billy.v3/osfs"
 	git "gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/storage/memory"
-
-	"io/ioutil"
-
-	"net/url"
-
-	"regexp"
-
-	"os/exec"
-
-	"net/http"
-
-	"encoding/json"
-
-	"cloud.google.com/go/storage"
-	"github.com/badgerodon/simulator/builder/builderpb"
-	"github.com/cespare/xxhash"
-	"github.com/google/brotli/go/cbrotli"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 )
 
 type vcsReference struct {
@@ -55,27 +47,18 @@ func (ref vcsReference) gitURL() string {
 // A Server builds go programs using gopherjs
 type Server struct {
 	workingDir string
-	projectID  string
-	bucket     string
-	folder     string
 
-	client *storage.Client
+	singleflight singleflight.Group
+	mu           sync.Mutex
+	lastAccess   map[string]time.Time
 }
 
 // NewServer creates a new Server
-func NewServer(workingDir, projectID, bucket, folder string) (*Server, error) {
-	client, err := storage.NewClient(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
+func NewServer(workingDir string) (*Server, error) {
 	return &Server{
 		workingDir: workingDir,
-		projectID:  projectID,
-		bucket:     bucket,
-		folder:     folder,
 
-		client: client,
+		lastAccess: make(map[string]time.Time),
 	}, nil
 }
 
@@ -83,7 +66,8 @@ func NewServer(workingDir, projectID, bucket, folder string) (*Server, error) {
 func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*builderpb.BuildResponse, error) {
 	importPathParts := strings.Split(req.ImportPath, "/")
 	if len(importPathParts) < 3 {
-		return nil, grpc.Errorf(codes.InvalidArgument, "invalid import path: %s", req.ImportPath)
+		return nil, grpc.Errorf(codes.InvalidArgument, "invalid import path: %s",
+			req.ImportPath)
 	}
 
 	ref := vcsReference{
@@ -92,37 +76,46 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		repository:   importPathParts[2],
 		branch:       req.Branch,
 	}
-	dir := getSafeName(req.ImportPath)
 
 	head, err := s.getHeadCommit(ctx, ref)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Println("BUILDING", head, ref)
+	dir := getSafeName(req.ImportPath, head)
+	dst := filepath.Join(s.workingDir, dir, filepath.Base(req.ImportPath)+".js")
 
-	fileName := head + ".js"
-	remotePath := path.Join(s.folder, dir, fileName)
-	webPath := "https://storage.googleapis.com/" + s.bucket + "/" + s.folder + "/" + dir + "/" + fileName
-	exists, err := s.objectExists(ctx, remotePath)
+	s.mu.Lock()
+	s.lastAccess[dst] = time.Now()
+	s.mu.Unlock()
+
+	_, err, _ = s.singleflight.Do(dst, func() (interface{}, error) {
+		var err error
+		//if _, err = os.Stat(dst); err != nil {
+		err = s.buildVCS(dst, ref, req, head)
+		//}
+		return nil, err
+	})
 	if err != nil {
 		return nil, err
 	}
-	if exists {
-		return &builderpb.BuildResponse{
-			Location: webPath,
-		}, nil
-	}
 
-	tmp, err := ioutil.TempDir(s.workingDir, dir)
+	return &builderpb.BuildResponse{
+		Location: dst,
+	}, nil
+}
+
+func (s *Server) buildVCS(dst string, ref vcsReference, req *builderpb.BuildRequest, head string) error {
+	tmp, err := ioutil.TempDir(s.workingDir, getSafeName(req.ImportPath, head))
 	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to create temporary directory: %v", err)
+		return grpc.Errorf(codes.Unknown, "failed to create temporary directory: %v", err)
 	}
+	defer os.RemoveAll(tmp)
 
 	checkoutPath := filepath.Join(tmp, "src", ref.provider, ref.organization, ref.repository)
 	err = os.MkdirAll(checkoutPath, 0755)
 	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to create src folder: %v", err)
+		return grpc.Errorf(codes.Unknown, "failed to create src folder: %v", err)
 	}
 
 	_, err = git.Clone(memory.NewStorage(), osfs.New(checkoutPath), &git.CloneOptions{
@@ -132,16 +125,16 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		Depth:         1,
 	})
 	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
+		return grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
 	}
 
 	binPath := filepath.Join(tmp, "bin")
 	err = os.MkdirAll(binPath, 0755)
 	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to create bin folder: %v", err)
+		return grpc.Errorf(codes.Unknown, "failed to create bin folder: %v", err)
 	}
 
-	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(binPath, fileName), req.ImportPath)
+	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(binPath, filepath.Base(dst)), req.ImportPath)
 	gopaths := []string{tmp}
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "GOPATH=") {
@@ -153,22 +146,84 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 	cmd.Env = append(cmd.Env, fmt.Sprintf("GOPATH=%s", strings.Join(gopaths, ":")))
 	bs, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, grpc.Errorf(codes.Unknown, "failed to build code: %v\n%v", err, string(bs))
+		return grpc.Errorf(codes.Unknown, "failed to build code: %v\n%v", err, string(bs))
 	}
 
-	for remotePath, localPath := range map[string]string{
-		remotePath:          filepath.Join(binPath, fileName),
-		remotePath + ".map": filepath.Join(binPath, fileName+".map"),
-	} {
-		err = s.uploadFile(ctx, remotePath, localPath)
-		if err != nil {
-			return nil, grpc.Errorf(codes.Unknown, "failed to upload file: %v", err)
+	// post process the js file to inline the map
+	f, err := os.Open(filepath.Join(binPath, filepath.Base(dst)))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	os.MkdirAll(filepath.Dir(dst), 0755)
+
+	err = os.Rename(filepath.Join(binPath, filepath.Base(dst)), dst)
+	if err != nil {
+		return grpc.Errorf(codes.Unknown, "failed to move file to working directory: %v", err)
+	}
+
+	mapPath := filepath.Join(binPath, filepath.Base(dst)+".map")
+	err = s.injectMapSources(mapPath+".out", mapPath)
+	if err != nil {
+		return err
+	}
+
+	err = os.Rename(mapPath+".out", dst+".map")
+	if err != nil {
+		return grpc.Errorf(codes.Unknown, "failed to move file to working directory: %v", err)
+	}
+
+	return nil
+}
+
+func (s *Server) injectMapSources(dst, src string) error {
+	sf, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sf.Close()
+
+	df, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer df.Close()
+
+	var sourceMap struct {
+		Version        int       `json:"version"`
+		File           string    `json:"file"`
+		SourceRoot     string    `json:"sourceRoot"`
+		Sources        []string  `json:"sources"`
+		SourcesContent []*string `json:"sourcesContent"`
+		Names          []string  `json:"names"`
+		Mappings       string    `json:"mappings"`
+	}
+	err = json.NewDecoder(sf).Decode(&sourceMap)
+	if err != nil {
+		return err
+	}
+
+	sourceMap.SourcesContent = make([]*string, 0, len(sourceMap.Sources))
+	for _, sourcePath := range sourceMap.Sources {
+		candidates := []string{
+			filepath.Join(os.Getenv("GOROOT"), "src", sourcePath),
+			filepath.Join(os.Getenv("GOPATH"), "src", sourcePath),
 		}
+		var content *string
+		for _, candidate := range candidates {
+			if _, err := os.Stat(candidate); err == nil {
+				bs, _ := ioutil.ReadFile(candidate)
+				content = new(string)
+				*content = string(bs)
+			}
+		}
+
+		sourceMap.SourcesContent = append(sourceMap.SourcesContent, content)
 	}
 
-	return &builderpb.BuildResponse{
-		Location: webPath,
-	}, nil
+	log.Println("MAP", sourceMap)
+
+	return json.NewEncoder(df).Encode(&sourceMap)
 }
 
 func (s *Server) getHeadCommit(ctx context.Context, ref vcsReference) (string, error) {
@@ -210,61 +265,6 @@ func (s *Server) getHeadCommit(ctx context.Context, ref vcsReference) (string, e
 	}
 }
 
-func (s *Server) objectExists(ctx context.Context, remotePath string) (exists bool, err error) {
-	object := s.client.Bucket(s.bucket).Object(remotePath)
-	_, err = object.Attrs(ctx)
-	if err == storage.ErrObjectNotExist {
-		return false, nil
-	} else if err != nil {
-		return false, grpc.Errorf(codes.Unknown, "failed to get object attributes: %v remote_path=%s",
-			err, remotePath)
-	}
-
-	return true, nil
-}
-
-func (s *Server) uploadFile(ctx context.Context, remotePath, localPath string) error {
-	src, err := os.Open(localPath)
-	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to open source file: %v remote_path=%s local_path=%s",
-			err, remotePath, localPath)
-	}
-	defer src.Close()
-
-	object := s.client.Bucket(s.bucket).Object(remotePath)
-	objectWriter := object.NewWriter(ctx)
-	defer objectWriter.Close()
-
-	objectWriter.CacheControl = "max-age=31556926"
-	objectWriter.ContentType = "text/javascript"
-	objectWriter.ContentEncoding = "br"
-
-	brWriter := cbrotli.NewWriter(objectWriter, cbrotli.WriterOptions{
-		Quality: 11,
-	})
-	defer brWriter.Close()
-
-	_, err = io.Copy(brWriter, src)
-	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to upload file: %v remote_path=%s local_path=%s",
-			err, remotePath, localPath)
-	}
-
-	err = brWriter.Close()
-	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to upload file: %v remote_path=%s local_path=%s",
-			err, remotePath, localPath)
-	}
-
-	err = objectWriter.Close()
-	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to upload file: %v remote_path=%s local_path=%s",
-			err, remotePath, localPath)
-	}
-
-	return nil
-}
-
 func getHash(args ...string) string {
 	h := sha256.New()
 	for _, arg := range args {
@@ -276,13 +276,10 @@ func getHash(args ...string) string {
 
 var unsafeCharacters = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
-func getSafeName(original string) string {
-	h := xxhash.New()
-	io.WriteString(h, original)
-	suffix := hex.EncodeToString(h.Sum(nil))
+func getSafeName(original, head string) string {
 	prefix := unsafeCharacters.ReplaceAllLiteralString(original, "-")
 	if len(prefix) > 500 {
 		prefix = prefix[:500]
 	}
-	return prefix + "--" + suffix
+	return prefix + "--" + head
 }
