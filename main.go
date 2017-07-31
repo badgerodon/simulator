@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -49,6 +48,7 @@ func run() error {
 	} {
 		http.Handle("/ui/"+uiPath, makeFileHandler("./ui/"+uiPath))
 	}
+	http.Handle("/srv/", http.StripPrefix("/srv/", http.FileServer(http.Dir(builderDataDir))))
 	http.Handle("/build/", http.HandlerFunc(handleBuild))
 	http.Handle("/", http.HandlerFunc(handleCatchAll))
 
@@ -67,6 +67,8 @@ func makeFileHandler(filePath string) http.HandlerFunc {
 }
 
 func handleBuild(w http.ResponseWriter, r *http.Request) {
+	log.Println("BUILD", r)
+
 	importPath := r.URL.Path[len("/build/"):]
 	branch := r.URL.Query().Get("branch")
 	if branch == "" {
@@ -92,33 +94,7 @@ func handleBuild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	location := res.GetLocation()
-	http.Redirect(w, r, location[len(builderDataDir):], http.StatusTemporaryRedirect)
-
-	// if strings.HasSuffix(r.URL.Path, ".map") {
-	// 	location += ".map"
-	// }
-
-	// f, err := os.Open(location)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), 500)
-	// 	return
-	// }
-	// defer f.Close()
-
-	// var out io.WriteCloser = nopWriteCloser{w}
-	// switch {
-	// case acceptsBrotli(r):
-	// 	w.Header().Set("Content-Encoding", "br")
-	// 	out = cbrotli.NewWriter(out, cbrotli.WriterOptions{
-	// 		Quality: 6,
-	// 	})
-	// }
-
-	// log.Println("RESULT", location)
-
-	// w.Header().Set("Content-Type", "text/javascript")
-	// io.Copy(out, f)
-	// out.Close()
+	http.ServeFile(w, r, location)
 }
 
 type nopWriteCloser struct {
@@ -142,16 +118,6 @@ func acceptsBrotli(r *http.Request) bool {
 }
 
 func handleCatchAll(w http.ResponseWriter, r *http.Request) {
-	log.Println("HANDLE", r.URL, r.Header)
-	if strings.HasSuffix(r.URL.Path, ".js") ||
-		strings.HasSuffix(r.URL.Path, ".map") {
-		builderPath := filepath.Join(builderDataDir, r.URL.Path)
-		if _, err := os.Stat(builderPath); err == nil {
-			http.ServeFile(w, r, builderPath)
-			return
-		}
-	}
-
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 		grpcServer.ServeHTTP(w, r)
 		return

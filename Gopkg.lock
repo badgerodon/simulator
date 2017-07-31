@@ -2,40 +2,40 @@
 
 
 [[projects]]
-  name = "cloud.google.com/go"
-  packages = ["compute/metadata","iam","internal","internal/optional","internal/version","storage"]
-  revision = "a5913b3f7deecba45e98ff33cefbac4fd204ddd7"
-  version = "v0.10.0"
+  name = "github.com/PuerkitoBio/goquery"
+  packages = ["."]
+  revision = "e1271ee34c6a305e38566ecd27ae374944907ee9"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
-  name = "github.com/cespare/xxhash"
+  name = "github.com/andybalholm/cascadia"
   packages = ["."]
-  revision = "1b6d2e40c16ba0dfce5c8eac2480ad6e7394819b"
+  revision = "349dd0209470eabd9514242c688c403c0926d266"
 
 [[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
-  packages = ["proto","protoc-gen-go/descriptor","ptypes/any"]
+  packages = ["proto","ptypes/any"]
   revision = "0a4f71a498b7c4812f64969510bcb4eca251e33a"
 
 [[projects]]
   branch = "master"
-  name = "github.com/google/brotli"
-  packages = ["go/cbrotli"]
-  revision = "172a378debedec81eb19747c96c28a81d917d284"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/googleapis/gax-go"
-  packages = ["."]
-  revision = "84ed26760e7f6f80887a2fbfb50db3cc415d2cea"
+  name = "github.com/gopherjs/gopherjs"
+  packages = ["js"]
+  revision = "2b1d432c8a82c9bff0b0baffaeb3ec6e92974112"
 
 [[projects]]
   branch = "master"
   name = "github.com/gopherjs/jsbuiltin"
   packages = ["."]
   revision = "67703bfb044e3192fbcab025c3aeaeedafad1f2f"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gopherjs/vecty"
+  packages = [".","elem"]
+  revision = "7d15bbeaa9172b71e239a83098d29ffc3b70590b"
 
 [[projects]]
   branch = "master"
@@ -70,14 +70,14 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["context","context/ctxhttp","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
+  packages = ["context","html","html/atom","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
   revision = "b3756b4b77d7b13260a0a2ec658753cf48922eac"
 
 [[projects]]
   branch = "master"
-  name = "golang.org/x/oauth2"
-  packages = [".","google","internal","jws","jwt"]
-  revision = "cce311a261e6fcf29de72ca96827bdb0b7d9c9e6"
+  name = "golang.org/x/sync"
+  packages = ["singleflight"]
+  revision = "f52d1811a62927559de87708c8913c1650ce4f26"
 
 [[projects]]
   branch = "master"
@@ -87,25 +87,13 @@
 
 [[projects]]
   branch = "master"
-  name = "google.golang.org/api"
-  packages = ["gensupport","googleapi","googleapi/internal/uritemplates","googleapi/transport","internal","iterator","option","storage/v1","transport"]
-  revision = "e665075b5ff79143ba49c58fab02df9dc122afd5"
-
-[[projects]]
-  name = "google.golang.org/appengine"
-  packages = [".","internal","internal/app_identity","internal/base","internal/datastore","internal/log","internal/modules","internal/remote_api","internal/socket","internal/urlfetch","socket","urlfetch"]
-  revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
-  version = "v1.0.0"
-
-[[projects]]
-  branch = "master"
   name = "google.golang.org/genproto"
-  packages = ["googleapis/api/annotations","googleapis/iam/v1","googleapis/rpc/status"]
+  packages = ["googleapis/rpc/status"]
   revision = "b0a3dcfcd1a9bd48e63634bd8802960804cf8315"
 
 [[projects]]
   name = "google.golang.org/grpc"
-  packages = [".","codes","credentials","credentials/oauth","grpclb/grpc_lb_v1","grpclog","internal","keepalive","metadata","naming","peer","stats","status","tap","transport"]
+  packages = [".","codes","credentials","grpclb/grpc_lb_v1","grpclog","internal","keepalive","metadata","naming","peer","stats","status","tap","transport"]
   revision = "b15215fb911b24a5d61d57feec4233d610530464"
   version = "v1.4.2"
 
@@ -130,6 +118,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "be33fcf8cfaf3c24f09848389b5511861c6d3140b1727710553daac4649921a9"
+  inputs-digest = "6b7f833ee817d737df8b492828a23b8df8d5a2c992867d18bc93db06e2b73c77"
   solver-name = "gps-cdcl"
   solver-version = 1

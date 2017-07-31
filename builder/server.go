@@ -8,8 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -82,17 +80,16 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 		return nil, err
 	}
 
-	dir := getSafeName(req.ImportPath, head)
-	dst := filepath.Join(s.workingDir, dir, filepath.Base(req.ImportPath)+".js")
+	dir := filepath.Join(s.workingDir, getSafeName(req.ImportPath, head))
 
 	s.mu.Lock()
-	s.lastAccess[dst] = time.Now()
+	s.lastAccess[dir] = time.Now()
 	s.mu.Unlock()
 
-	_, err, _ = s.singleflight.Do(dst, func() (interface{}, error) {
+	_, err, _ = s.singleflight.Do(dir, func() (interface{}, error) {
 		var err error
-		//if _, err = os.Stat(dst); err != nil {
-		err = s.buildVCS(dst, ref, req, head)
+		//if _, err = os.Stat(dir); err != nil {
+		err = s.buildVCS(ref, req, dir, head)
 		//}
 		return nil, err
 	})
@@ -101,19 +98,15 @@ func (s *Server) Build(ctx context.Context, req *builderpb.BuildRequest) (*build
 	}
 
 	return &builderpb.BuildResponse{
-		Location: dst,
+		Location: filepath.Join(dir, filepath.Base(req.ImportPath)+".js"),
 	}, nil
 }
 
-func (s *Server) buildVCS(dst string, ref vcsReference, req *builderpb.BuildRequest, head string) error {
-	tmp, err := ioutil.TempDir(s.workingDir, getSafeName(req.ImportPath, head))
-	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to create temporary directory: %v", err)
-	}
-	defer os.RemoveAll(tmp)
+func (s *Server) buildVCS(ref vcsReference, req *builderpb.BuildRequest, dir, head string) error {
+	name := filepath.Base(req.ImportPath)
 
-	checkoutPath := filepath.Join(tmp, "src", ref.provider, ref.organization, ref.repository)
-	err = os.MkdirAll(checkoutPath, 0755)
+	checkoutPath := filepath.Join(dir, "src", ref.provider, ref.organization, ref.repository)
+	err := os.MkdirAll(checkoutPath, 0755)
 	if err != nil {
 		return grpc.Errorf(codes.Unknown, "failed to create src folder: %v", err)
 	}
@@ -128,14 +121,8 @@ func (s *Server) buildVCS(dst string, ref vcsReference, req *builderpb.BuildRequ
 		return grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
 	}
 
-	binPath := filepath.Join(tmp, "bin")
-	err = os.MkdirAll(binPath, 0755)
-	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to create bin folder: %v", err)
-	}
-
-	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(binPath, filepath.Base(dst)), req.ImportPath)
-	gopaths := []string{tmp}
+	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(dir, name+".js"), req.ImportPath)
+	gopaths := []string{dir}
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "GOPATH=") {
 			gopaths = append([]string{e[7:]}, gopaths...)
@@ -149,26 +136,12 @@ func (s *Server) buildVCS(dst string, ref vcsReference, req *builderpb.BuildRequ
 		return grpc.Errorf(codes.Unknown, "failed to build code: %v\n%v", err, string(bs))
 	}
 
-	// post process the js file to inline the map
-	f, err := os.Open(filepath.Join(binPath, filepath.Base(dst)))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	os.MkdirAll(filepath.Dir(dst), 0755)
-
-	err = os.Rename(filepath.Join(binPath, filepath.Base(dst)), dst)
-	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to move file to working directory: %v", err)
-	}
-
-	mapPath := filepath.Join(binPath, filepath.Base(dst)+".map")
+	mapPath := filepath.Join(dir, name+".js.map")
 	err = s.injectMapSources(mapPath+".out", mapPath)
 	if err != nil {
 		return err
 	}
-
-	err = os.Rename(mapPath+".out", dst+".map")
+	err = os.Rename(mapPath+".out", mapPath)
 	if err != nil {
 		return grpc.Errorf(codes.Unknown, "failed to move file to working directory: %v", err)
 	}
@@ -190,40 +163,57 @@ func (s *Server) injectMapSources(dst, src string) error {
 	defer df.Close()
 
 	var sourceMap struct {
-		Version        int       `json:"version"`
-		File           string    `json:"file"`
-		SourceRoot     string    `json:"sourceRoot"`
-		Sources        []string  `json:"sources"`
-		SourcesContent []*string `json:"sourcesContent"`
-		Names          []string  `json:"names"`
-		Mappings       string    `json:"mappings"`
+		Version    int      `json:"version"`
+		File       string   `json:"file"`
+		SourceRoot string   `json:"sourceRoot"`
+		Sources    []string `json:"sources"`
+		Names      []string `json:"names"`
+		Mappings   string   `json:"mappings"`
 	}
 	err = json.NewDecoder(sf).Decode(&sourceMap)
 	if err != nil {
 		return err
 	}
 
-	sourceMap.SourcesContent = make([]*string, 0, len(sourceMap.Sources))
-	for _, sourcePath := range sourceMap.Sources {
+	for i, sourcePath := range sourceMap.Sources {
 		candidates := []string{
 			filepath.Join(os.Getenv("GOROOT"), "src", sourcePath),
 			filepath.Join(os.Getenv("GOPATH"), "src", sourcePath),
 		}
-		var content *string
 		for _, candidate := range candidates {
 			if _, err := os.Stat(candidate); err == nil {
-				bs, _ := ioutil.ReadFile(candidate)
-				content = new(string)
-				*content = string(bs)
+				s.copyFile(
+					filepath.Join(filepath.Dir(src), sourcePath),
+					candidate,
+				)
 			}
 		}
-
-		sourceMap.SourcesContent = append(sourceMap.SourcesContent, content)
+		if strings.HasPrefix(sourcePath, "/") {
+			sourceMap.Sources[i] = sourcePath[1:]
+		}
+		sourceMap.Sources[i] = "src/" + sourceMap.Sources[i]
 	}
 
-	log.Println("MAP", sourceMap)
-
 	return json.NewEncoder(df).Encode(&sourceMap)
+}
+
+func (s *Server) copyFile(dst, src string) error {
+	os.MkdirAll(filepath.Dir(dst), 0755)
+
+	dstf, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstf.Close()
+
+	srcf, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcf.Close()
+
+	_, err = io.Copy(dstf, srcf)
+	return err
 }
 
 func (s *Server) getHeadCommit(ctx context.Context, ref vcsReference) (string, error) {
