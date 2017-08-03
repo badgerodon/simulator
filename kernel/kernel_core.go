@@ -118,7 +118,7 @@ func (k *coreKernel) StartProcess(name string, env []string) (handle Handle, err
 		location string
 		err      error
 	}
-	c := make(chan Result)
+	c := make(chan Result, 1)
 	js.Global.Get("fetch").Invoke("/api/v1/build?import_path="+js.Global.Get("encodeURIComponent").Invoke(name).String()).
 		Call("then", func(res *js.Object) *js.Object {
 			return res.Call("json")

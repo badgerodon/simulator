@@ -44,6 +44,7 @@ func run() error {
 		"node_modules/react-dom/dist/react-dom.js",
 		"dist/bundle.js",
 		"dist/bundle.js.map",
+		"dist/monaco-editor-worker-loader-proxy.js",
 	} {
 		http.Handle("/ui/"+uiPath, makeFileHandler("./ui/"+uiPath))
 	}
@@ -98,10 +99,26 @@ func handleUI(w http.ResponseWriter, r *http.Request) {
 <html>
 	<head>
 		<meta charset="UTF-8" />
-		<title>gRPC Simulator</title>
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
+		<title>Simulator</title>
 	</head>
 	<body>
 		<div id="root"></div>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+		<script>
+			requirejs.config({
+				paths: {
+					'github-api': 'https://unpkg.com/github-api@3.0.0/dist/GitHub.bundle.min'
+				}
+			});
+			require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.9.0/min/vs/' }});
+			window.MonacoEnvironment = {
+				getWorkerUrl: function(workerId, label) {
+					return '/ui/dist/monaco-editor-worker-loader-proxy.js';
+				}
+			};
+		</script>
 		<script src="/ui/dist/bundle.js"></script>
 	</body>
 </html>`)
