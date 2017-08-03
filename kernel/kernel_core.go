@@ -114,7 +114,27 @@ func (k *coreKernel) Close(handle Handle) error {
 func (k *coreKernel) StartProcess(name string, env []string) (handle Handle, err error) {
 	handle = NextHandle()
 
-	worker := js.Global.Get("Worker").New(name)
+	type Result struct {
+		location string
+		err      error
+	}
+	c := make(chan Result)
+	js.Global.Get("fetch").Invoke("/api/v1/build?import_path="+js.Global.Get("encodeURIComponent").Invoke(name).String()).
+		Call("then", func(res *js.Object) *js.Object {
+			return res.Call("json")
+		}).
+		Call("then", func(res *js.Object) {
+			c <- Result{location: res.Get("location").String()}
+		}).
+		Call("catch", func(err *js.Object) {
+			c <- Result{err: errors.New(err.String())}
+		})
+	result := <-c
+	if result.err != nil {
+		return handle, err
+	}
+
+	worker := js.Global.Get("Worker").New(result.location)
 	NewRPCMessageChannelServer(worker, func(method string, arguments []*js.Object) (results, transfer []*js.Object, err error) {
 		switch method {
 		case "Close":

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"io"
 	"log"
 	"net"
@@ -49,7 +48,6 @@ func run() error {
 		http.Handle("/ui/"+uiPath, makeFileHandler("./ui/"+uiPath))
 	}
 	http.Handle("/srv/", http.StripPrefix("/srv/", http.FileServer(http.Dir(builderDataDir))))
-	http.Handle("/build/", http.HandlerFunc(handleBuild))
 	http.Handle("/", http.HandlerFunc(handleCatchAll))
 
 	port := os.Getenv("PORT")
@@ -64,37 +62,6 @@ func makeFileHandler(filePath string) http.HandlerFunc {
 	return func(res http.ResponseWriter, req *http.Request) {
 		http.ServeFile(res, req, filePath)
 	}
-}
-
-func handleBuild(w http.ResponseWriter, r *http.Request) {
-	log.Println("BUILD", r)
-
-	importPath := r.URL.Path[len("/build/"):]
-	branch := r.URL.Query().Get("branch")
-	if branch == "" {
-		branch = "master"
-	}
-
-	cc, err := grpc.Dial("127.0.0.1:5001", grpc.WithInsecure())
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	defer cc.Close()
-
-	c := builderpb.NewServiceClient(cc)
-	res, err := c.Build(context.Background(), &builderpb.BuildRequest{
-		ImportPath: importPath,
-		Branch:     branch,
-	})
-	if err != nil {
-		log.Printf("failed to build: %v\n", err)
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	location := res.GetLocation()
-	http.ServeFile(w, r, location)
 }
 
 type nopWriteCloser struct {

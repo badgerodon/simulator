@@ -24,7 +24,7 @@ func (r *root) Render() *vecty.HTML {
 }
 
 func main() {
-	kernel.StartProcess("/build/github.com/badgerodon/simulator-examples/hello", nil)
+	kernel.StartProcess("github.com/badgerodon/simulator-examples/hello", nil)
 
 	vecty.SetTitle("Simulator")
 	vecty.RenderBody(new(root))
