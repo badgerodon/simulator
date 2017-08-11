@@ -17,37 +17,47 @@ type root struct {
 
 func (r *root) Render() *vecty.HTML {
 	return elem.Body(
-		elem.Heading1(
-			vecty.Text("Simulator"),
+		elem.Div(vecty.Attribute("class", "container"),
+			elem.Heading1(
+				vecty.Text("Simulator"),
+			),
 		),
-		elem.Div(vecty.Attribute("id", "container"), vecty.Style("width", "800px"), vecty.Style("height", "800px")),
-		elem.Script(vecty.Text(`
-			require(["vs/editor/editor.main"], function () {
-				var editor = monaco.editor.create(document.getElementById('container'), {
-					value: [
-						'function x() {',
-						'\tconsole.log("Hello world!");',
-						'}'
-					].join('\n'),
-					language: 'javascript'
-				});
-			});
-		`)),
+		elem.Section(
+			elem.Div(vecty.Attribute("class", "container"),
+				elem.Div(vecty.Attribute("class", "columns"),
+					elem.Div(vecty.Attribute("class", "column"),
+						elem.Preformatted(
+							elem.Code(vecty.Attribute("id", "code"), vecty.Attribute("class", "lang-go")),
+							vecty.Style("font-family", "Go Mono"),
+							vecty.Style("font-size", "10px"),
+						),
+					),
+					elem.Div(vecty.Attribute("class", "column")),
+				),
+			),
+		),
 	)
 }
 
 func main() {
 	//kernel.StartProcess("github.com/badgerodon/simulator-examples/hello", nil)
 
-	js.Global.Get("requirejs").Invoke([]string{"github-api"}, func(GitHub *js.Object) {
-		gh := GitHub.New(js.M{})
-
-		repo := gh.Call("getRepo", "badgerodon", "simulator-examples")
-		repo.Call("getContents", "master", "hello/main.go", true, func(err, res, req *js.Object) {
-			js.Global.Get("console").Call("log", err, res)
-		})
-	})
-
 	vecty.SetTitle("Simulator")
 	vecty.RenderBody(new(root))
+	js.Global.Get("requirejs").Invoke([]string{
+		"github-api", "highlight",
+	}, func(GitHub *js.Object, hljs *js.Object) {
+		js.Global.Get("requirejs").Invoke([]string{
+			"highlight-go",
+		}, func() {
+			gh := GitHub.New(js.M{})
+
+			repo := gh.Call("getRepo", "badgerodon", "simulator-examples")
+			repo.Call("getContents", "master", "hello/main.go", true, func(err, res, req *js.Object) {
+				el := js.Global.Get("document").Call("getElementById", "code")
+				el.Set("innerHTML", res)
+				hljs.Call("highlightBlock", el)
+			})
+		})
+	})
 }

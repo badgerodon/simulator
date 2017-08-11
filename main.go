@@ -51,12 +51,12 @@ func run() error {
 	http.Handle("/srv/", http.StripPrefix("/srv/", http.FileServer(http.Dir(builderDataDir))))
 	http.Handle("/", http.HandlerFunc(handleCatchAll))
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "5000"
+	addr := os.Getenv("ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:5000"
 	}
-	log.Println("starting server on :" + port)
-	return http.ListenAndServe(":"+port, nil)
+	log.Println("starting server on " + addr)
+	return http.ListenAndServe(addr, nil)
 }
 
 func makeFileHandler(filePath string) http.HandlerFunc {
@@ -102,6 +102,8 @@ func handleUI(w http.ResponseWriter, r *http.Request) {
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
 		<title>Simulator</title>
+		<link rel="stylesheet" type="text/css" href="https://unpkg.com/highlight.js@9.12.0/styles/github.css" />
+		<link rel="stylesheet" type="text/css" href="https://unpkg.com/bulma@0.5.1/css/bulma.css" />
 	</head>
 	<body>
 		<div id="root"></div>
@@ -109,15 +111,11 @@ func handleUI(w http.ResponseWriter, r *http.Request) {
 		<script>
 			requirejs.config({
 				paths: {
-					'github-api': 'https://unpkg.com/github-api@3.0.0/dist/GitHub.bundle.min'
+					'github-api': 'https://unpkg.com/github-api@3.0.0/dist/GitHub.bundle.min',
+					'highlight': 'https://unpkg.com/highlight.js@9.12.0/lib/highlight',
+					'highlight-go': 'https://unpkg.com/highlight-languages@9.8.1/go'
 				}
 			});
-			require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.9.0/min/vs/' }});
-			window.MonacoEnvironment = {
-				getWorkerUrl: function(workerId, label) {
-					return '/ui/dist/monaco-editor-worker-loader-proxy.js';
-				}
-			};
 		</script>
 		<script src="/ui/dist/bundle.js"></script>
 	</body>

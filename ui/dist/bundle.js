@@ -17367,7 +17367,7 @@ $packages["github.com/badgerodon/simulator/vendor/github.com/gopherjs/vecty"] = 
 	return $pkg;
 })();
 $packages["github.com/badgerodon/simulator/vendor/github.com/gopherjs/vecty/elem"] = (function() {
-	var $pkg = {}, $init, vecty, Body, Div, Heading1, Script;
+	var $pkg = {}, $init, vecty, Body, Code, Div, Heading1, Preformatted, Section;
 	vecty = $packages["github.com/badgerodon/simulator/vendor/github.com/gopherjs/vecty"];
 	Body = function(markup) {
 		var $ptr, _r, markup, $s, $r;
@@ -17377,6 +17377,14 @@ $packages["github.com/badgerodon/simulator/vendor/github.com/gopherjs/vecty/elem
 		/* */ } return; } if ($f === undefined) { $f = { $blk: Body }; } $f.$ptr = $ptr; $f._r = _r; $f.markup = markup; $f.$s = $s; $f.$r = $r; return $f;
 	};
 	$pkg.Body = Body;
+	Code = function(markup) {
+		var $ptr, _r, markup, $s, $r;
+		/* */ $s = 0; var $f, $c = false; if (this !== undefined && this.$blk !== undefined) { $f = this; $c = true; $ptr = $f.$ptr; _r = $f._r; markup = $f.markup; $s = $f.$s; $r = $f.$r; } s: while (true) { switch ($s) { case 0:
+		_r = vecty.Tag("code", markup); /* */ $s = 1; case 1: if($c) { $c = false; _r = _r.$blk(); } if (_r && _r.$blk !== undefined) { break s; }
+		$s = -1; return _r;
+		/* */ } return; } if ($f === undefined) { $f = { $blk: Code }; } $f.$ptr = $ptr; $f._r = _r; $f.markup = markup; $f.$s = $s; $f.$r = $r; return $f;
+	};
+	$pkg.Code = Code;
 	Div = function(markup) {
 		var $ptr, _r, markup, $s, $r;
 		/* */ $s = 0; var $f, $c = false; if (this !== undefined && this.$blk !== undefined) { $f = this; $c = true; $ptr = $f.$ptr; _r = $f._r; markup = $f.markup; $s = $f.$s; $r = $f.$r; } s: while (true) { switch ($s) { case 0:
@@ -17393,14 +17401,22 @@ $packages["github.com/badgerodon/simulator/vendor/github.com/gopherjs/vecty/elem
 		/* */ } return; } if ($f === undefined) { $f = { $blk: Heading1 }; } $f.$ptr = $ptr; $f._r = _r; $f.markup = markup; $f.$s = $s; $f.$r = $r; return $f;
 	};
 	$pkg.Heading1 = Heading1;
-	Script = function(markup) {
+	Preformatted = function(markup) {
 		var $ptr, _r, markup, $s, $r;
 		/* */ $s = 0; var $f, $c = false; if (this !== undefined && this.$blk !== undefined) { $f = this; $c = true; $ptr = $f.$ptr; _r = $f._r; markup = $f.markup; $s = $f.$s; $r = $f.$r; } s: while (true) { switch ($s) { case 0:
-		_r = vecty.Tag("script", markup); /* */ $s = 1; case 1: if($c) { $c = false; _r = _r.$blk(); } if (_r && _r.$blk !== undefined) { break s; }
+		_r = vecty.Tag("pre", markup); /* */ $s = 1; case 1: if($c) { $c = false; _r = _r.$blk(); } if (_r && _r.$blk !== undefined) { break s; }
 		$s = -1; return _r;
-		/* */ } return; } if ($f === undefined) { $f = { $blk: Script }; } $f.$ptr = $ptr; $f._r = _r; $f.markup = markup; $f.$s = $s; $f.$r = $r; return $f;
+		/* */ } return; } if ($f === undefined) { $f = { $blk: Preformatted }; } $f.$ptr = $ptr; $f._r = _r; $f.markup = markup; $f.$s = $s; $f.$r = $r; return $f;
 	};
-	$pkg.Script = Script;
+	$pkg.Preformatted = Preformatted;
+	Section = function(markup) {
+		var $ptr, _r, markup, $s, $r;
+		/* */ $s = 0; var $f, $c = false; if (this !== undefined && this.$blk !== undefined) { $f = this; $c = true; $ptr = $f.$ptr; _r = $f._r; markup = $f.markup; $s = $f.$s; $r = $f.$r; } s: while (true) { switch ($s) { case 0:
+		_r = vecty.Tag("section", markup); /* */ $s = 1; case 1: if($c) { $c = false; _r = _r.$blk(); } if (_r && _r.$blk !== undefined) { break s; }
+		$s = -1; return _r;
+		/* */ } return; } if ($f === undefined) { $f = { $blk: Section }; } $f.$ptr = $ptr; $f._r = _r; $f.markup = markup; $f.$s = $s; $f.$r = $r; return $f;
+	};
+	$pkg.Section = Section;
 	$init = function() {
 		$pkg.$init = function() {};
 		/* */ var $f, $c = false, $s = 0, $r; if (this !== undefined && this.$blk !== undefined) { $f = this; $c = true; $s = $f.$s; $r = $f.$r; } s: while (true) { switch ($s) { case 0:
@@ -17411,60 +17427,79 @@ $packages["github.com/badgerodon/simulator/vendor/github.com/gopherjs/vecty/elem
 	return $pkg;
 })();
 $packages["github.com/badgerodon/simulator/ui"] = (function() {
-	var $pkg = {}, $init, vecty, elem, js, root, sliceType, sliceType$1, ptrType, funcType, funcType$1, ptrType$1, ptrType$2, main;
+	var $pkg = {}, $init, vecty, elem, js, root, sliceType, ptrType, sliceType$1, ptrType$1, funcType, funcType$1, funcType$2, ptrType$2, main;
 	vecty = $packages["github.com/badgerodon/simulator/vendor/github.com/gopherjs/vecty"];
 	elem = $packages["github.com/badgerodon/simulator/vendor/github.com/gopherjs/vecty/elem"];
 	js = $packages["github.com/gopherjs/gopherjs/js"];
 	root = $pkg.root = $newType(0, $kindStruct, "main.root", true, "github.com/badgerodon/simulator/ui", false, function(Core_) {
 		this.$val = this;
 		if (arguments.length === 0) {
-			this.Core = new vecty.Core.ptr($ifaceNil, $ifaceNil, ptrType$1.nil);
+			this.Core = new vecty.Core.ptr($ifaceNil, $ifaceNil, ptrType.nil);
 			return;
 		}
 		this.Core = Core_;
 	});
 	sliceType = $sliceType(vecty.MarkupOrComponentOrHTML);
+	ptrType = $ptrType(vecty.HTML);
 	sliceType$1 = $sliceType($String);
-	ptrType = $ptrType(js.Object);
-	funcType = $funcType([ptrType, ptrType, ptrType], [], false);
-	funcType$1 = $funcType([ptrType], [], false);
-	ptrType$1 = $ptrType(vecty.HTML);
+	ptrType$1 = $ptrType(js.Object);
+	funcType = $funcType([ptrType$1, ptrType$1, ptrType$1], [], false);
+	funcType$1 = $funcType([], [], false);
+	funcType$2 = $funcType([ptrType$1, ptrType$1], [], false);
 	ptrType$2 = $ptrType(root);
 	root.ptr.prototype.Render = function() {
-		var $ptr, _arg, _arg$1, _arg$2, _r, _r$1, _r$2, _r$3, _r$4, _r$5, r, $s, $r;
-		/* */ $s = 0; var $f, $c = false; if (this !== undefined && this.$blk !== undefined) { $f = this; $c = true; $ptr = $f.$ptr; _arg = $f._arg; _arg$1 = $f._arg$1; _arg$2 = $f._arg$2; _r = $f._r; _r$1 = $f._r$1; _r$2 = $f._r$2; _r$3 = $f._r$3; _r$4 = $f._r$4; _r$5 = $f._r$5; r = $f.r; $s = $f.$s; $r = $f.$r; } s: while (true) { switch ($s) { case 0:
+		var $ptr, _arg, _arg$1, _arg$10, _arg$2, _arg$3, _arg$4, _arg$5, _arg$6, _arg$7, _arg$8, _arg$9, _r, _r$1, _r$10, _r$2, _r$3, _r$4, _r$5, _r$6, _r$7, _r$8, _r$9, r, $s, $r;
+		/* */ $s = 0; var $f, $c = false; if (this !== undefined && this.$blk !== undefined) { $f = this; $c = true; $ptr = $f.$ptr; _arg = $f._arg; _arg$1 = $f._arg$1; _arg$10 = $f._arg$10; _arg$2 = $f._arg$2; _arg$3 = $f._arg$3; _arg$4 = $f._arg$4; _arg$5 = $f._arg$5; _arg$6 = $f._arg$6; _arg$7 = $f._arg$7; _arg$8 = $f._arg$8; _arg$9 = $f._arg$9; _r = $f._r; _r$1 = $f._r$1; _r$10 = $f._r$10; _r$2 = $f._r$2; _r$3 = $f._r$3; _r$4 = $f._r$4; _r$5 = $f._r$5; _r$6 = $f._r$6; _r$7 = $f._r$7; _r$8 = $f._r$8; _r$9 = $f._r$9; r = $f.r; $s = $f.$s; $r = $f.$r; } s: while (true) { switch ($s) { case 0:
 		r = this;
+		_arg = vecty.Attribute("class", new $String("container"));
 		_r = vecty.Text("Simulator", new sliceType([])); /* */ $s = 1; case 1: if($c) { $c = false; _r = _r.$blk(); } if (_r && _r.$blk !== undefined) { break s; }
 		_r$1 = elem.Heading1(new sliceType([_r])); /* */ $s = 2; case 2: if($c) { $c = false; _r$1 = _r$1.$blk(); } if (_r$1 && _r$1.$blk !== undefined) { break s; }
-		_arg = _r$1;
-		_r$2 = elem.Div(new sliceType([vecty.Attribute("id", new $String("container")), vecty.Style("width", "800px"), vecty.Style("height", "800px")])); /* */ $s = 3; case 3: if($c) { $c = false; _r$2 = _r$2.$blk(); } if (_r$2 && _r$2.$blk !== undefined) { break s; }
-		_arg$1 = _r$2;
-		_r$3 = vecty.Text("\n\t\t\trequire([\"vs/editor/editor.main\"], function () {\n\t\t\t\tvar editor = monaco.editor.create(document.getElementById('container'), {\n\t\t\t\t\tvalue: [\n\t\t\t\t\t\t'function x() {',\n\t\t\t\t\t\t'\\tconsole.log(\"Hello world!\");',\n\t\t\t\t\t\t'}'\n\t\t\t\t\t].join('\\n'),\n\t\t\t\t\tlanguage: 'javascript'\n\t\t\t\t});\n\t\t\t});\n\t\t", new sliceType([])); /* */ $s = 4; case 4: if($c) { $c = false; _r$3 = _r$3.$blk(); } if (_r$3 && _r$3.$blk !== undefined) { break s; }
-		_r$4 = elem.Script(new sliceType([_r$3])); /* */ $s = 5; case 5: if($c) { $c = false; _r$4 = _r$4.$blk(); } if (_r$4 && _r$4.$blk !== undefined) { break s; }
-		_arg$2 = _r$4;
-		_r$5 = elem.Body(new sliceType([_arg, _arg$1, _arg$2])); /* */ $s = 6; case 6: if($c) { $c = false; _r$5 = _r$5.$blk(); } if (_r$5 && _r$5.$blk !== undefined) { break s; }
-		$s = -1; return _r$5;
-		/* */ } return; } if ($f === undefined) { $f = { $blk: root.ptr.prototype.Render }; } $f.$ptr = $ptr; $f._arg = _arg; $f._arg$1 = _arg$1; $f._arg$2 = _arg$2; $f._r = _r; $f._r$1 = _r$1; $f._r$2 = _r$2; $f._r$3 = _r$3; $f._r$4 = _r$4; $f._r$5 = _r$5; $f.r = r; $f.$s = $s; $f.$r = $r; return $f;
+		_arg$1 = _r$1;
+		_r$2 = elem.Div(new sliceType([_arg, _arg$1])); /* */ $s = 3; case 3: if($c) { $c = false; _r$2 = _r$2.$blk(); } if (_r$2 && _r$2.$blk !== undefined) { break s; }
+		_arg$2 = _r$2;
+		_arg$3 = vecty.Attribute("class", new $String("container"));
+		_arg$4 = vecty.Attribute("class", new $String("columns"));
+		_arg$5 = vecty.Attribute("class", new $String("column"));
+		_r$3 = elem.Code(new sliceType([vecty.Attribute("id", new $String("code")), vecty.Attribute("class", new $String("lang-go"))])); /* */ $s = 4; case 4: if($c) { $c = false; _r$3 = _r$3.$blk(); } if (_r$3 && _r$3.$blk !== undefined) { break s; }
+		_r$4 = elem.Preformatted(new sliceType([_r$3, vecty.Style("font-family", "Go Mono"), vecty.Style("font-size", "10px")])); /* */ $s = 5; case 5: if($c) { $c = false; _r$4 = _r$4.$blk(); } if (_r$4 && _r$4.$blk !== undefined) { break s; }
+		_arg$6 = _r$4;
+		_r$5 = elem.Div(new sliceType([_arg$5, _arg$6])); /* */ $s = 6; case 6: if($c) { $c = false; _r$5 = _r$5.$blk(); } if (_r$5 && _r$5.$blk !== undefined) { break s; }
+		_arg$7 = _r$5;
+		_r$6 = elem.Div(new sliceType([vecty.Attribute("class", new $String("column"))])); /* */ $s = 7; case 7: if($c) { $c = false; _r$6 = _r$6.$blk(); } if (_r$6 && _r$6.$blk !== undefined) { break s; }
+		_arg$8 = _r$6;
+		_r$7 = elem.Div(new sliceType([_arg$4, _arg$7, _arg$8])); /* */ $s = 8; case 8: if($c) { $c = false; _r$7 = _r$7.$blk(); } if (_r$7 && _r$7.$blk !== undefined) { break s; }
+		_arg$9 = _r$7;
+		_r$8 = elem.Div(new sliceType([_arg$3, _arg$9])); /* */ $s = 9; case 9: if($c) { $c = false; _r$8 = _r$8.$blk(); } if (_r$8 && _r$8.$blk !== undefined) { break s; }
+		_r$9 = elem.Section(new sliceType([_r$8])); /* */ $s = 10; case 10: if($c) { $c = false; _r$9 = _r$9.$blk(); } if (_r$9 && _r$9.$blk !== undefined) { break s; }
+		_arg$10 = _r$9;
+		_r$10 = elem.Body(new sliceType([_arg$2, _arg$10])); /* */ $s = 11; case 11: if($c) { $c = false; _r$10 = _r$10.$blk(); } if (_r$10 && _r$10.$blk !== undefined) { break s; }
+		$s = -1; return _r$10;
+		/* */ } return; } if ($f === undefined) { $f = { $blk: root.ptr.prototype.Render }; } $f.$ptr = $ptr; $f._arg = _arg; $f._arg$1 = _arg$1; $f._arg$10 = _arg$10; $f._arg$2 = _arg$2; $f._arg$3 = _arg$3; $f._arg$4 = _arg$4; $f._arg$5 = _arg$5; $f._arg$6 = _arg$6; $f._arg$7 = _arg$7; $f._arg$8 = _arg$8; $f._arg$9 = _arg$9; $f._r = _r; $f._r$1 = _r$1; $f._r$10 = _r$10; $f._r$2 = _r$2; $f._r$3 = _r$3; $f._r$4 = _r$4; $f._r$5 = _r$5; $f._r$6 = _r$6; $f._r$7 = _r$7; $f._r$8 = _r$8; $f._r$9 = _r$9; $f.r = r; $f.$s = $s; $f.$r = $r; return $f;
 	};
 	root.prototype.Render = function() { return this.$val.Render(); };
 	main = function() {
 		var $ptr, $s, $r;
 		/* */ $s = 0; var $f, $c = false; if (this !== undefined && this.$blk !== undefined) { $f = this; $c = true; $ptr = $f.$ptr; $s = $f.$s; $r = $f.$r; } s: while (true) { switch ($s) { case 0:
-		$global.requirejs($externalize(new sliceType$1(["github-api"]), sliceType$1), $externalize((function(GitHub) {
-			var $ptr, GitHub, gh, repo;
-			gh = new (GitHub)($externalize($makeMap($String.keyFor, []), js.M));
-			repo = gh.getRepo($externalize("badgerodon", $String), $externalize("simulator-examples", $String));
-			repo.getContents($externalize("master", $String), $externalize("hello/main.go", $String), $externalize(true, $Bool), $externalize((function(err, res, req) {
-				var $ptr, err, req, res;
-				$global.console.log(err, res);
-			}), funcType));
-		}), funcType$1));
 		$r = vecty.SetTitle("Simulator"); /* */ $s = 1; case 1: if($c) { $c = false; $r = $r.$blk(); } if ($r && $r.$blk !== undefined) { break s; }
-		$r = vecty.RenderBody(new root.ptr(new vecty.Core.ptr($ifaceNil, $ifaceNil, ptrType$1.nil))); /* */ $s = 2; case 2: if($c) { $c = false; $r = $r.$blk(); } if ($r && $r.$blk !== undefined) { break s; }
+		$r = vecty.RenderBody(new root.ptr(new vecty.Core.ptr($ifaceNil, $ifaceNil, ptrType.nil))); /* */ $s = 2; case 2: if($c) { $c = false; $r = $r.$blk(); } if ($r && $r.$blk !== undefined) { break s; }
+		$global.requirejs($externalize(new sliceType$1(["github-api", "highlight"]), sliceType$1), $externalize((function(GitHub, hljs) {
+			var $ptr, GitHub, hljs;
+			$global.requirejs($externalize(new sliceType$1(["highlight-go"]), sliceType$1), $externalize((function() {
+				var $ptr, gh, repo;
+				gh = new (GitHub)($externalize($makeMap($String.keyFor, []), js.M));
+				repo = gh.getRepo($externalize("badgerodon", $String), $externalize("simulator-examples", $String));
+				repo.getContents($externalize("master", $String), $externalize("hello/main.go", $String), $externalize(true, $Bool), $externalize((function(err, res, req) {
+					var $ptr, el, err, req, res;
+					el = $global.document.getElementById($externalize("code", $String));
+					el.innerHTML = res;
+					hljs.highlightBlock(el);
+				}), funcType));
+			}), funcType$1));
+		}), funcType$2));
 		$s = -1; return;
 		/* */ } return; } if ($f === undefined) { $f = { $blk: main }; } $f.$ptr = $ptr; $f.$s = $s; $f.$r = $r; return $f;
 	};
-	ptrType$2.methods = [{prop: "Render", name: "Render", pkg: "", typ: $funcType([], [ptrType$1], false)}];
+	ptrType$2.methods = [{prop: "Render", name: "Render", pkg: "", typ: $funcType([], [ptrType], false)}];
 	root.init("", [{prop: "Core", name: "", exported: true, typ: vecty.Core, tag: ""}]);
 	$init = function() {
 		$pkg.$init = function() {};

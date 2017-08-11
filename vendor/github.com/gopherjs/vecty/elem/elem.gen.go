@@ -62,7 +62,8 @@ func Aside(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 
 // Audio is used to embed sound content in documents. It may contain one or
 // more audio sources, represented using the src attribute or the <source>
-// element; the browser will choose the most suitable one.
+// element: the browser will choose the most suitable one. It can also be the
+// destination for streamed media, using a MediaStream.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/audio
 func Audio(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -188,7 +189,7 @@ func ColumnGroup(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 }
 
 // Data links a given content with a machine-readable translation. If the
-// content is time- or date-related, the <time> must be used.
+// content is time- or date-related, the <time> element must be used.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/data
 func Data(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -253,9 +254,9 @@ func Div(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("div", markup...)
 }
 
-// DescriptionList encloses a list of groups of terms and descriptions. Common
-// uses for this element are to implement a glossary or to display metadata (a
-// list of key-value pairs).
+// DescriptionList represents a description list. The element encloses a list
+// of groups of terms and descriptions. Common uses for this element are to
+// implement a glossary or to display metadata (a list of key-value pairs).
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/dl
 func DescriptionList(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -415,14 +416,14 @@ func Italic(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("i", markup...)
 }
 
-// The HTML Inline Frame Element <iframe> represents a nested browsing context,
-// effectively embedding another HTML page into the current page. In HTML 4.01,
-// a document may contain a head and a body or a head and a frameset, but not
-// both a body and a frameset. However, an <iframe> can be used within a normal
-// document body. Each browsing context has its own session history and active
-// document. The browsing context that contains the embedded content is called
-// the parent browsing context. The top-level browsing context (which has no
-// parent) is typically the browser window.
+// InlineFrame represents a nested browsing context, effectively embedding
+// another HTML page into the current page. In HTML 4.01, a document may
+// contain a head and a body or a head and a frameset, but not both a body and
+// a frameset. However, an <iframe> can be used within a normal document body.
+// Each browsing context has its own session history and active document. The
+// browsing context that contains the embedded content is called the parent
+// browsing context. The top-level browsing context (which has no parent) is
+// typically the browser window.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe
 func InlineFrame(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -437,8 +438,7 @@ func Image(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 }
 
 // Input is used to create interactive controls for web-based forms in order to
-// accept data from the user. How an <input> works varies considerably
-// depending on the value of its type attribute.
+// accept data from the user.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input
 func Input(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -487,7 +487,7 @@ func ListItem(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 
 // Link specifies relationships between the current document and an external
 // resource. Possible uses for this element include defining a relational
-// framework for navigation. This Element is most used to link to style sheets.
+// framework for navigation. This element is most used to link to style sheets.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/link
 func Link(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -496,8 +496,8 @@ func Link(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 
 // Main represents the main content of the <body> of a document or application.
 // The main content area consists of content that is directly related to, or
-// expands upon the central topic of a document or the central functionality of
-// an application.
+// expands upon the central topic of, a document or the central functionality
+// of an application.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/main
 func Main(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -513,9 +513,7 @@ func Map(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 }
 
 // Mark represents highlighted text, i.e., a run of text marked for reference
-// purpose, due to its relevance in a particular context. For example it can be
-// used in a page showing search results to highlight every instance of the
-// searched-for word.
+// purpose, due to its relevance in a particular context.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/mark
 func Mark(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -541,9 +539,8 @@ func MenuItem(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("menuitem", markup...)
 }
 
-// Meta represents any metadata information that cannot be represented by one
-// of the other HTML meta-related elements (<base>, <link>, <script>, <style>
-// or <title>).
+// Meta represents metadata that cannot be represented by other HTML
+// meta-related elements, like <base>, <link>, <script>, <style> or <title>.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
 func Meta(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -558,15 +555,17 @@ func Meter(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("meter", markup...)
 }
 
-// Navigation represents a section of a page that links to other pages or to
-// parts within the page: a section with navigation links.
+// Navigation represents a section of a page whose purpose is to provide
+// navigation links, either within the current document or to other documents.
+// Common examples of navigation sections are menus, tables of contents, and
+// indexes.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/nav
 func Navigation(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("nav", markup...)
 }
 
-// <noframes> is an HTML element which is used to supporting browsers which are
+// <noframes> is an HTML element which is used to support browsers which are
 // not able to support <frame> elements or configured to do so.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/noframes
@@ -574,7 +573,7 @@ func NoFrames(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("noframes", markup...)
 }
 
-// NoScript defines a section of html to be inserted if a script type on the
+// NoScript defines a section of HTML to be inserted if a script type on the
 // page is unsupported or if scripting is currently turned off in the browser.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/noscript
@@ -605,8 +604,9 @@ func OptionsGroup(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("optgroup", markup...)
 }
 
-// Option is used to create a control representing an item within a <select>,
-// an <optgroup> or a <datalist> HTML5 element.
+// Option is used to define an item contained in a <select>, an <optgroup>, or
+// a <datalist> element. As such, <option> can represent menu items in popups
+// and other lists of items in an HTML document.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/option
 func Option(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -732,23 +732,25 @@ func Script(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("script", markup...)
 }
 
-// Section represents a generic section of a document, i.e., a thematic
-// grouping of content, typically with a heading.
+// Section represents a standalone section of functionality contained within an
+// HTML document, typically with a heading, which doesn't have a more specific
+// semantic element to represent it.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/section
 func Section(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("section", markup...)
 }
 
-// Select represents a control that provides a menu of options.
+// Select represents a control that provides a menu of options:
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/select
 func Select(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("select", markup...)
 }
 
-// Slot is a placeholder inside a web component that you can fill with your own
-// markup, with the effect of composing different DOM trees together.
+// Slot—part of the Web Components technology suite—is a placeholder inside
+// a web component that you can fill with your own markup, which lets you
+// create separate DOM trees and present them together.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/slot
 func Slot(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
@@ -826,7 +828,7 @@ func Superscript(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("sup", markup...)
 }
 
-// Table represents tabular data —that is, information expressed via a
+// Table represents tabular data — that is, information expressed via a
 // two-dimensional data table.
 //
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/table
@@ -913,8 +915,8 @@ func TableRow(markup ...vecty.MarkupOrComponentOrHTML) *vecty.HTML {
 	return vecty.Tag("tr", markup...)
 }
 
-// Track is used as a child of the media elements—<audio> and <video>. It
-// lets you specify timed text tracks (or time-based data), for example to
+// Track is used as a child of the media elements <audio> and <video>. It lets
+// you specify timed text tracks (or time-based data), for example to
 // automatically handle subtitles. The tracks are formatted in WebVTT format
 // (.vtt files) — Web Video Text Tracks.
 //
