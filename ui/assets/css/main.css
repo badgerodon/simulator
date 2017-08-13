@@ -1,0 +1,51 @@
+body {
+	overflow: hidden;
+}
+
+header {
+	height: 30px;
+	background-color: #fff;
+	border-bottom: 1px solid #aaa;
+	box-sizing: border-box;
+	padding: 5px 8px;
+}
+
+header h1 {
+	font-size: inherit;
+	margin: 0;
+	padding: 0;
+}
+
+#terminal-container {
+	position: absolute;
+	top: 30px;
+	left: 0;
+	right: 0;
+	bottom: 30px;
+	box-sizing: border-box;
+}
+
+footer {
+	position: absolute;
+	bottom: 0px;
+	left: 0;
+	right: 0;
+	height: 30px;
+	background-color: #fff;
+	border-top: 1px solid #aaa;
+	text-align: center;
+	font-size: 10px;
+	padding: 4px 0;
+	box-sizing: border-box;
+}
+
+.terminal {
+	font-family: "Go Mono", monospace;
+	font-size: 12px;
+}
+
+.terminal,
+.terminal .xterm-viewport {
+	background-color: #fff;
+	color: #000;
+}

@@ -1,63 +1,60 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/gopherjs/gopherjs/js"
-	"github.com/gopherjs/vecty"
-	"github.com/gopherjs/vecty/elem"
 )
 
-//go:generate gopherjs build -o dist/bundle.js .
-//go:generate sh -c "cat dist/bundle.js | head -n -1 > dist/tmp.js"
-//go:generate sh -c "mv dist/tmp.js dist/bundle.js"
-//go:generate rm dist/bundle.js.map
-
-type root struct {
-	vecty.Core
-}
-
-func (r *root) Render() *vecty.HTML {
-	return elem.Body(
-		elem.Div(vecty.Attribute("class", "container"),
-			elem.Heading1(
-				vecty.Text("Simulator"),
-			),
-		),
-		elem.Section(
-			elem.Div(vecty.Attribute("class", "container"),
-				elem.Div(vecty.Attribute("class", "columns"),
-					elem.Div(vecty.Attribute("class", "column"),
-						elem.Preformatted(
-							elem.Code(vecty.Attribute("id", "code"), vecty.Attribute("class", "lang-go")),
-							vecty.Style("font-family", "Go Mono"),
-							vecty.Style("font-size", "10px"),
-						),
-					),
-					elem.Div(vecty.Attribute("class", "column")),
-				),
-			),
-		),
-	)
-}
+//go:generate gopherjs build -o assets/js/main.js github.com/badgerodon/simulator/ui
+//go:generate cp node_modules/bulma/css/bulma.css assets/css/
+//go:generate sh -c "cp node_modules/xterm/dist/xterm.css assets/css/"
+//go:generate sh -c "cp node_modules/xterm/dist/xterm.j* assets/js/"
+//go:generate sh -c "cp node_modules/xterm/dist/addons/fit/fit.js assets/js/xterm.fit.js"
 
 func main() {
 	//kernel.StartProcess("github.com/badgerodon/simulator-examples/hello", nil)
 
-	vecty.SetTitle("Simulator")
-	vecty.RenderBody(new(root))
-	js.Global.Get("requirejs").Invoke([]string{
-		"github-api", "highlight",
-	}, func(GitHub *js.Object, hljs *js.Object) {
-		js.Global.Get("requirejs").Invoke([]string{
-			"highlight-go",
-		}, func() {
-			gh := GitHub.New(js.M{})
+	// root, _ := GetElementByID("root")
+	// root.ReplaceWith(
+	// 	E("div#root",
+	// 		E("header",
+	// 			E("h1", T("Simulator")),
+	// 		),
 
-			repo := gh.Call("getRepo", "badgerodon", "simulator-examples")
-			repo.Call("getContents", "master", "hello/main.go", true, func(err, res, req *js.Object) {
-				el := js.Global.Get("document").Call("getElementById", "code")
-				el.Set("innerHTML", res)
-				hljs.Call("highlightBlock", el)
-			})
-		})
-	})
+	// 		E("section.section",
+	// 			E("div.container",
+	// 				E("div.columns",
+	// 					E("div.column",
+	// 						E("div#code"),
+	// 					),
+	// 				),
+	// 			),
+	// 		),
+
+	// 		E("footer",
+	// 			E("span", H("Copyright &copy;"+fmt.Sprint(time.Now().Year())+" Caleb Doxsey")),
+	// 		),
+	// 	),
+	// )
+
+	container := js.Global.Get("document").Call("getElementById", "terminal-container")
+
+	term := js.Global.Get("Terminal").New()
+	term.Call("open", container, false)
+	for i := 0; i < 1000; i++ {
+		term.Call("writeln", fmt.Sprint("Hello from \033[1;3;31mxterm.js\033[0m $ ", i))
+	}
+
+	onResize := func() {
+		fontWidth, fontHeight := 10, 13
+		ow, oh := container.Get("offsetWidth").Int(), container.Get("offsetHeight").Int()
+		cols := ow / fontWidth
+		rows := oh / fontHeight
+		term.Call("resize", cols, rows)
+	}
+	onResize()
+	js.Global.Set("onresize", onResize)
+
+	js.Global.Get("console").Call("log", term)
 }

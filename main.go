@@ -39,15 +39,7 @@ func run() error {
 		grpcServer.Serve(li)
 	}()
 
-	for _, uiPath := range []string{
-		"node_modules/react/dist/react.js",
-		"node_modules/react-dom/dist/react-dom.js",
-		"dist/bundle.js",
-		"dist/bundle.js.map",
-		"dist/monaco-editor-worker-loader-proxy.js",
-	} {
-		http.Handle("/ui/"+uiPath, makeFileHandler("./ui/"+uiPath))
-	}
+	http.Handle("/ui/assets/", http.StripPrefix("/ui/assets/", http.FileServer(http.Dir("./ui/assets/"))))
 	http.Handle("/srv/", http.StripPrefix("/srv/", http.FileServer(http.Dir(builderDataDir))))
 	http.Handle("/", http.HandlerFunc(handleCatchAll))
 
@@ -102,22 +94,25 @@ func handleUI(w http.ResponseWriter, r *http.Request) {
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" >
 		<title>Simulator</title>
-		<link rel="stylesheet" type="text/css" href="https://unpkg.com/highlight.js@9.12.0/styles/github.css" />
-		<link rel="stylesheet" type="text/css" href="https://unpkg.com/bulma@0.5.1/css/bulma.css" />
+		<link rel="stylesheet" type="text/css" href="/ui/assets/css/normalize.css" />
+		<link rel="stylesheet" type="text/css" href="/ui/assets/css/xterm.css" />
+		<link rel="stylesheet" type="text/css" href="/ui/assets/css/main.css" />
 	</head>
 	<body>
-		<div id="root"></div>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
-		<script>
-			requirejs.config({
-				paths: {
-					'github-api': 'https://unpkg.com/github-api@3.0.0/dist/GitHub.bundle.min',
-					'highlight': 'https://unpkg.com/highlight.js@9.12.0/lib/highlight',
-					'highlight-go': 'https://unpkg.com/highlight-languages@9.8.1/go'
-				}
-			});
-		</script>
-		<script src="/ui/dist/bundle.js"></script>
+		<header>
+			<h1>Simulator</h1>
+		</header>
+
+		<section id="terminal-container">
+
+		</section>
+
+		<footer>
+			&copy;2017 Caleb Doxsey
+		</footer>
+
+		<script src="/ui/assets/js/xterm.js"></script>
+		<script src="/ui/assets/js/main.js"></script>
 	</body>
 </html>`)
 }
