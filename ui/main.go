@@ -2,18 +2,21 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
 
 	"github.com/gopherjs/gopherjs/js"
 )
 
-//go:generate gopherjs build -o assets/js/main.js github.com/badgerodon/simulator/ui
-//go:generate cp node_modules/bulma/css/bulma.css assets/css/
+//go:generate /Users/caleb/badgerodon/bin/gopherjs build -o assets/js/main.js github.com/badgerodon/simulator/ui
 //go:generate sh -c "cp node_modules/xterm/dist/xterm.css assets/css/"
 //go:generate sh -c "cp node_modules/xterm/dist/xterm.j* assets/js/"
 //go:generate sh -c "cp node_modules/xterm/dist/addons/fit/fit.js assets/js/xterm.fit.js"
+//go:generate echo done
 
 func main() {
 	//kernel.StartProcess("github.com/badgerodon/simulator-examples/hello", nil)
+	cmd := exec.Command("github.com/badgerodon/simulator-examples/hello")
+	cmd.Run()
 
 	// root, _ := GetElementByID("root")
 	// root.ReplaceWith(

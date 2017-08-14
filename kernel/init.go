@@ -2,6 +2,7 @@ package kernel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -76,7 +77,9 @@ func init() {
 	syscall.DefaultWriteFunction = func(fd uintptr, b []byte) (int, error) {
 		return defaultKernel.Write(Handle(fd), b)
 	}
-
+	syscall.DefaultStartProcessFunction = func(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error) {
+		panic(errors.New("starting processes is not supported in gopherjs"))
+	}
 }
 
 func allowHost(host string) bool {
