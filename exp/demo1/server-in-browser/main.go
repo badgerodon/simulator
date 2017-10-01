@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"io"
 	"log"
-	"net"
 	"net/http"
-	"strings"
 
 	"github.com/hashicorp/yamux"
 
@@ -27,7 +24,7 @@ func main() {
 		js.Global.Get("console").Call("log", "open", evt)
 	})
 	ws.Call("addEventListener", "message", func(evt *js.Object) {
-		js.Global.Get("console").Call("log", "message", evt.Get("data"))
+		//js.Global.Get("console").Call("log", "message", evt.Get("data"))
 	})
 	ws.Call("addEventListener", "error", func(evt *js.Object) {
 		js.Global.Get("console").Call("log", "error", evt)
@@ -48,31 +45,5 @@ func main() {
 	err = http.Serve(li, nil)
 	if err != nil {
 		log.Fatal(err)
-	}
-	// for {
-	// 	conn, err := li.Accept()
-	// 	if err != nil {
-	// 		log.Fatal("failed to accept connection", err)
-	// 	}
-
-	// 	go handle(conn)
-	// }
-}
-
-func handle(conn net.Conn) {
-	defer conn.Close()
-
-	s := bufio.NewScanner(conn)
-	for s.Scan() {
-		log.Println("recv", s.Text())
-
-		args := strings.Fields(s.Text())
-		if len(args) == 0 {
-			continue
-		}
-		switch args[0] {
-		case "get":
-			io.WriteString(conn, "TEST\r\n")
-		}
 	}
 }

@@ -30,12 +30,12 @@ func newWSConn(ws *js.Object) *wsconn {
 
 func (c *wsconn) Read(b []byte) (n int, err error) {
 	n, err = c.rdr.Read(b)
-	js.Global.Get("console").Call("log", "wsconn", "Read", b)
+	//js.Global.Get("console").Call("log", "wsconn", "Read", b)
 	return n, err
 }
 
 func (c *wsconn) Write(b []byte) (n int, err error) {
-	js.Global.Get("console").Call("log", "wsconn", "Write", b)
+	//js.Global.Get("console").Call("log", "wsconn", "Write", b)
 	buf := js.NewArrayBuffer(b)
 	c.ws.Call("send", buf)
 	return len(b), nil

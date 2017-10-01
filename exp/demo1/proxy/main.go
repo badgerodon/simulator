@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/hashicorp/yamux"
 
@@ -57,25 +58,31 @@ func handleListen(w http.ResponseWriter, r *http.Request) {
 	}
 	defer src.Close()
 
+	go func() {
+		for range time.Tick(time.Second) {
+			if dst.IsClosed() {
+				src.Close()
+				return
+			}
+		}
+	}()
+
 	log.Println("started listener", src.Addr())
+	defer log.Println("closed listener", src.Addr())
 
 	for {
 		srcc, err := src.Accept()
 		if err != nil {
-			log.Println("failed to accept connection:", err)
-			return
+			log.Println("error accepting connection:", err)
+			break
 		}
-
-		log.Println("received connection", srcc.RemoteAddr())
 
 		dstc, err := dst.Open()
 		if err != nil {
 			srcc.Close()
-			log.Println("failed to open connection:", err)
-			return
+			log.Println("error opening connection:", err)
+			break
 		}
-
-		log.Println("opened connection", dstc.LocalAddr())
 
 		go func() {
 			defer srcc.Close()

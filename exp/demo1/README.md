@@ -1,3 +1,4 @@
 # Demo #1
 
-Proxy traffic to a "server" running in the browser.
+1. Run a "server" in the browser listening on a port
+2. Proxy traffic from a locally mapped TCP port over a websocket to the "server" in the browser

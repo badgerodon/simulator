@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"log"
 
 	"github.com/gorilla/websocket"
 )
@@ -30,7 +29,7 @@ func (conn *binaryWSConn) Read(p []byte) (int, error) {
 		}
 
 		mt, buf, err := conn.ReadMessage()
-		log.Println("<", mt, string(buf), err)
+		//log.Println("<", mt, string(buf), err)
 		if err != nil {
 			return 0, err
 		}
@@ -43,7 +42,7 @@ func (conn *binaryWSConn) Read(p []byte) (int, error) {
 }
 
 func (conn *binaryWSConn) Write(p []byte) (int, error) {
-	log.Println(">", websocket.BinaryMessage, string(p))
+	//log.Println(">", websocket.BinaryMessage, string(p))
 	err := conn.WriteMessage(websocket.BinaryMessage, p)
 	if err != nil {
 		return 0, err
