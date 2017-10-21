@@ -21,6 +21,8 @@
 #  version = "2.4.0"
 
 
+ignored = ["github.com/gopherjs/gopherjs"]
+
 [[constraint]]
   branch = "master"
   name = "github.com/cespare/xxhash"
@@ -44,3 +46,7 @@
 [[constraint]]
   name = "golang.org/x/sync"
   branch = "master"
+
+[[constraint]]
+  name = "github.com/gorilla/websocket"
+  version = "1.2.0"

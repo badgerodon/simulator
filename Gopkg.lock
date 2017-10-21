@@ -2,40 +2,16 @@
 
 
 [[projects]]
-  name = "github.com/PuerkitoBio/goquery"
-  packages = ["."]
-  revision = "e1271ee34c6a305e38566ecd27ae374944907ee9"
-  version = "v1.1.0"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/andybalholm/cascadia"
-  packages = ["."]
-  revision = "349dd0209470eabd9514242c688c403c0926d266"
-
-[[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
   packages = ["proto","ptypes/any"]
   revision = "0a4f71a498b7c4812f64969510bcb4eca251e33a"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/gopherjs/gopherjs"
-  packages = ["js"]
-  revision = "2b1d432c8a82c9bff0b0baffaeb3ec6e92974112"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/gopherjs/jsbuiltin"
+  name = "github.com/gorilla/websocket"
   packages = ["."]
-  revision = "67703bfb044e3192fbcab025c3aeaeedafad1f2f"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/gopherjs/vecty"
-  packages = [".","elem"]
-  revision = "7d15bbeaa9172b71e239a83098d29ffc3b70590b"
+  revision = "ea4d1f681babbce9545c9c5f3d5194a789c89f5b"
+  version = "v1.2.0"
 
 [[projects]]
   branch = "master"
@@ -70,13 +46,13 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["context","html","html/atom","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
+  packages = ["context","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace"]
   revision = "b3756b4b77d7b13260a0a2ec658753cf48922eac"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sync"
-  packages = ["singleflight"]
+  packages = ["errgroup","singleflight"]
   revision = "f52d1811a62927559de87708c8913c1650ce4f26"
 
 [[projects]]
@@ -118,6 +94,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6b7f833ee817d737df8b492828a23b8df8d5a2c992867d18bc93db06e2b73c77"
+  inputs-digest = "56ff985843db1191d6692b63754937adc24180829351ab0539d3c6d8388dc135"
   solver-name = "gps-cdcl"
   solver-version = 1
