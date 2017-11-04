@@ -2,6 +2,7 @@ package kernel
 
 import (
 	"net"
+	"syscall"
 
 	"github.com/gopherjs/gopherjs/js"
 )
@@ -40,37 +41,48 @@ func (k *webWorkerKernel) Listen(networkPort Handle) (net.Listener, error) {
 	return li, nil
 }
 
-func (k *webWorkerKernel) Read(handle Handle, data []byte) (int, error) {
-	res, err := k.client.Invoke("Read", []interface{}{handle, len(data)}, nil)
+func (k *webWorkerKernel) Pipe() (r, w int, err error) {
+	res, err := k.client.Invoke("Pipe", nil, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	return res[0].Int(), res[1].Int(), nil
+}
+
+func (k *webWorkerKernel) Read(fd int, p []byte) (int, error) {
+	res, err := k.client.Invoke("Read", []interface{}{fd, len(p)}, nil)
 	if err != nil {
 		return 0, err
 	}
 	b := toBytes(res[0])
-	copy(data, b)
+	copy(p, b)
 	return len(b), nil
 }
 
-func (k *webWorkerKernel) Write(handle Handle, data []byte) (int, error) {
-	b := js.NewArrayBuffer(data)
-	res, err := k.client.Invoke("Write", []interface{}{handle, b}, []interface{}{b})
+func (k *webWorkerKernel) Write(fd int, p []byte) (int, error) {
+	js.Global.Get("console").Call("log", "WW", "Write", fd, p)
+	b := js.NewArrayBuffer(p)
+	res, err := k.client.Invoke("Write", []interface{}{fd, b}, []interface{}{b})
 	if err != nil {
 		return 0, err
 	}
 	return res[0].Int(), nil
 }
 
-func (k *webWorkerKernel) Close(handle Handle) error {
-	_, err := k.client.Invoke("Close", []interface{}{handle}, nil)
+func (k *webWorkerKernel) Close(fd int) error {
+	js.Global.Get("console").Call("log", "WW", "Close", fd)
+	_, err := k.client.Invoke("Close", []interface{}{fd}, nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (k *webWorkerKernel) StartProcess(name string, env []string) (handle Handle, err error) {
-	res, err := k.client.Invoke("StartProcess", []interface{}{name, env}, nil)
+func (k *webWorkerKernel) StartProcess(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error) {
+	res, err := k.client.Invoke("StartProcess", []interface{}{argv0, argv, attr}, nil)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return Handle(res[0].Int64()), nil
+	pid = int(res[0].Int64())
+	return pid, uintptr(pid), nil
 }

@@ -121,11 +121,18 @@ func (s *Server) buildVCS(ref vcsReference, req *builderpb.BuildRequest, dir, he
 		return grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
 	}
 
+	fmt.Println(filepath.Join(dir, "src", req.ImportPath))
+	err = writeFiles(filepath.Join(dir, "src", req.ImportPath))
+	if err != nil {
+		return grpc.Errorf(codes.Unknown, "failed to write template files: %v", err)
+	}
+
 	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(dir, name+".js"), req.ImportPath)
 	gopaths := []string{dir}
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "GOPATH=") {
-			gopaths = append([]string{e[7:]}, gopaths...)
+			gopaths = append(gopaths, e[7:])
+			//gopaths = append([]string{e[7:]}, gopaths...)
 		} else {
 			cmd.Env = append(cmd.Env, e)
 		}
@@ -183,7 +190,7 @@ func (s *Server) injectMapSources(dst, src string) error {
 		for _, candidate := range candidates {
 			if _, err := os.Stat(candidate); err == nil {
 				s.copyFile(
-					filepath.Join(filepath.Dir(src), sourcePath),
+					filepath.Join(filepath.Dir(src), "src", sourcePath),
 					candidate,
 				)
 			}

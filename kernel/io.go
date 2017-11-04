@@ -74,6 +74,11 @@ func NewChannelWriter(c chan<- []byte) *ChannelWriter {
 	}
 }
 
+func (w *ChannelWriter) Close() error {
+	close(w.c)
+	return nil
+}
+
 // Write writes p to the channel
 func (w *ChannelWriter) Write(b []byte) (sz int, err error) {
 	select {

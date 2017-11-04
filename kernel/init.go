@@ -2,14 +2,17 @@ package kernel
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/badgerodon/simulator/kernel/vfs"
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jsbuiltin"
 )
@@ -21,6 +24,8 @@ func init() {
 	} else {
 		defaultKernel = newCoreKernel()
 	}
+
+	js.Global.Get("console").Call("log", "LOCATION", js.Global.Get("location"))
 
 	net.DefaultDialContextFunction = func(ctx context.Context, network, address string) (net.Conn, error) {
 		switch network {
@@ -71,14 +76,56 @@ func init() {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
-	syscall.DefaultReadFunction = func(fd uintptr, b []byte) (int, error) {
-		return defaultKernel.Read(Handle(fd), b)
-	}
-	syscall.DefaultWriteFunction = func(fd uintptr, b []byte) (int, error) {
-		return defaultKernel.Write(Handle(fd), b)
-	}
 	syscall.DefaultStartProcessFunction = func(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error) {
-		panic(errors.New("starting processes is not supported in gopherjs"))
+		return defaultKernel.StartProcess(argv0, argv, attr)
+	}
+	syscall.DefaultWriteFunction = func(fd int, p []byte) (int, error) {
+		return defaultKernel.Write(fd, p)
+	}
+
+	// setup the file system
+
+	fs, err := vfs.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	syscall.DefaultCloseFunction = func(fd int) error {
+		js.Global.Get("console").Call("log", "CLOSE", fd)
+		return fs.Close(fd)
+	}
+
+	syscall.DefaultOpenFunction = func(path string, mode int, perm uint32) (fd int, err error) {
+		js.Global.Get("console").Call("log", "OPEN", path, mode, perm)
+		return fs.Open(path, mode, perm)
+	}
+
+	syscall.DefaultFCNTLFunction = func(fd int, cmd int, arg int) (val int, err error) {
+		js.Global.Get("console").Call("log", "FCNTL", fd, cmd, arg)
+		return fs.FCNTL(fd, cmd, arg)
+	}
+
+	syscall.DefaultPipe2Function = func(p []int, flags int) error {
+		r, w, err := defaultKernel.Pipe()
+		if err != nil {
+			return err
+		}
+		p[0] = r
+		p[1] = w
+		return nil
+	}
+
+	u, err := url.Parse(js.Global.Get("location").Get("href").String())
+	if err == nil {
+		if fd0, _ := strconv.Atoi(u.Query().Get("files[0]")); fd0 > 0 {
+			os.Stdin = os.NewFile(uintptr(fd0), "stdin")
+		}
+		if fd1, _ := strconv.Atoi(u.Query().Get("files[1]")); fd1 > 0 {
+			os.Stdout = os.NewFile(uintptr(fd1), "stdout")
+		}
+		if fd2, _ := strconv.Atoi(u.Query().Get("files[2]")); fd2 > 0 {
+			os.Stderr = os.NewFile(uintptr(fd2), "stderr")
+		}
 	}
 }
 

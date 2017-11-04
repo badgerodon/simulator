@@ -5,8 +5,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/url"
 	"sync"
+	"syscall"
 
 	"github.com/gopherjs/gopherjs/js"
 )
@@ -16,6 +19,8 @@ type coreKernel struct {
 	listeners   map[Handle]*js.Object
 	workers     map[Handle]*js.Object
 	connections map[Handle]*js.Object
+	readers     map[int]io.Reader
+	writers     map[int]io.WriteCloser
 	nextPort    int64
 	nextPID     int
 }
@@ -25,6 +30,8 @@ func newCoreKernel() *coreKernel {
 		listeners:   make(map[Handle]*js.Object),
 		workers:     make(map[Handle]*js.Object),
 		connections: make(map[Handle]*js.Object),
+		readers:     make(map[int]io.Reader),
+		writers:     make(map[int]io.WriteCloser),
 		nextPort:    10000,
 		nextPID:     1000,
 	}
@@ -43,7 +50,7 @@ func (k *coreKernel) Dial(networkPort Handle) (net.Conn, error) {
 	k.Unlock()
 
 	conn := newAckedMessagePortConn(localPort, networkPort, port, func() {
-		k.Close(localPort)
+		k.Close(int(localPort))
 	})
 	return conn, nil
 }
@@ -54,33 +61,66 @@ func (k *coreKernel) Listen(networkPort Handle) (net.Listener, error) {
 		return nil, err
 	}
 	return newMessagePortListener(networkPort, port, func() {
-		k.Close(networkPort)
+		k.Close(int(networkPort))
 	}), nil
 }
 
-func (k *coreKernel) Read(handle Handle, data []byte) (int, error) {
+func (k *coreKernel) Pipe() (r, w int, err error) {
+	c := make(chan []byte, 1)
+	cr := NewChannelReader(c)
+	cw := NewChannelWriter(c)
+
+	r = int(NextHandle())
+	w = int(NextHandle())
+
+	k.Lock()
+	k.readers[r] = cr
+	k.writers[w] = cw
+	k.Unlock()
+
+	return r, w, nil
+}
+
+func (k *coreKernel) Read(fd int, p []byte) (int, error) {
+	k.Lock()
+	r, ok := k.readers[fd]
+	k.Unlock()
+	if ok {
+		return r.Read(p)
+	}
+
 	return 0, errors.New("Read not implemented")
 }
 
-func (k *coreKernel) Write(handle Handle, data []byte) (int, error) {
-	switch handle {
+func (k *coreKernel) Write(fd int, p []byte) (int, error) {
+	js.Global.Get("console").Call("log", "CK", "Write", fd, p)
+	k.Lock()
+	w, ok := k.writers[fd]
+	k.Unlock()
+	if ok {
+		return w.Write(p)
+	}
+
+	switch fd {
 	case 1:
-		s := bufio.NewScanner(bytes.NewReader(data))
+		s := bufio.NewScanner(bytes.NewReader(p))
 		for s.Scan() {
 			js.Global.Get("console").Call("log", s.Text())
 		}
-		return len(data), nil
+		return len(p), nil
 	case 2:
-		s := bufio.NewScanner(bytes.NewReader(data))
+		s := bufio.NewScanner(bytes.NewReader(p))
 		for s.Scan() {
 			js.Global.Get("console").Call("warn", s.Text())
 		}
-		return len(data), nil
+		return len(p), nil
 	}
 	return 0, errors.New("Write not implemented")
 }
 
-func (k *coreKernel) Close(handle Handle) error {
+func (k *coreKernel) Close(fd int) error {
+	handle := Handle(fd)
+
 	k.Lock()
 	li, ok := k.listeners[handle]
 	delete(k.listeners, handle)
@@ -107,19 +147,42 @@ func (k *coreKernel) Close(handle Handle) error {
 		c.Call("close")
 		return nil
 	}
+	{
+		k.Lock()
+		_, ok := k.readers[int(handle)]
+		delete(k.readers, int(handle))
+		k.Unlock()
+		if ok {
+			return nil
+		}
+	}
+
+	{
+		k.Lock()
+		w, ok := k.writers[int(handle)]
+		delete(k.writers, int(handle))
+		k.Unlock()
+		if ok {
+			return w.Close()
+		}
+	}
 
 	return nil
 }
 
-func (k *coreKernel) StartProcess(name string, env []string) (handle Handle, err error) {
-	handle = NextHandle()
+func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error) {
+	js.Global.Get("console").Call("log", "CK", "StartProcess", argv0, argv, attr)
+	pid = int(NextHandle())
 
 	type Result struct {
 		location string
 		err      error
 	}
 	c := make(chan Result, 1)
-	js.Global.Get("fetch").Invoke("/api/v1/build?import_path="+js.Global.Get("encodeURIComponent").Invoke(name).String()).
+	vs := make(url.Values)
+	vs.Set("import_path", argv0)
+	vs.Set("branch", "master")
+	js.Global.Get("fetch").Invoke("/api/build?"+vs.Encode()).
 		Call("then", func(res *js.Object) *js.Object {
 			return res.Call("json")
 		}).
@@ -131,15 +194,21 @@ func (k *coreKernel) StartProcess(name string, env []string) (handle Handle, err
 		})
 	result := <-c
 	if result.err != nil {
-		return handle, err
+		return 0, handle, err
 	}
 
-	worker := js.Global.Get("Worker").New(result.location)
+	vs = make(url.Values)
+	for i, fd := range attr.Files {
+		vs.Set(fmt.Sprintf("files[%d]", i), fmt.Sprint(fd))
+	}
+	u := result.location + "?" + vs.Encode()
+
+	worker := js.Global.Get("Worker").New(u)
 	NewRPCMessageChannelServer(worker, func(method string, arguments []*js.Object) (results, transfer []*js.Object, err error) {
 		switch method {
 		case "Close":
 			handle := Handle(arguments[0].Int64())
-			err = k.Close(handle)
+			err = k.Close(int(handle))
 			return nil, nil, err
 		case "Dial":
 			networkPort := Handle(arguments[0].Int64())
@@ -159,7 +228,7 @@ func (k *coreKernel) StartProcess(name string, env []string) (handle Handle, err
 			handle := Handle(arguments[0].Int64())
 			sz := arguments[1].Int()
 			buf := make([]byte, sz)
-			n, err := k.Read(handle, buf)
+			n, err := k.Read(int(handle), buf)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -169,7 +238,7 @@ func (k *coreKernel) StartProcess(name string, env []string) (handle Handle, err
 		case "Write":
 			handle := Handle(arguments[0].Int64())
 			buf := toBytes(arguments[1])
-			n, err := k.Write(handle, buf)
+			n, err := k.Write(int(handle), buf)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -181,10 +250,10 @@ func (k *coreKernel) StartProcess(name string, env []string) (handle Handle, err
 	})
 
 	k.Lock()
-	k.workers[handle] = worker
+	k.workers[Handle(pid)] = worker
 	k.Unlock()
 
-	return handle, nil
+	return pid, uintptr(pid), nil
 }
 
 func (k *coreKernel) dial(networkPort Handle) (port *js.Object, err error) {

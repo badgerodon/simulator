@@ -5,6 +5,7 @@ import (
 	"math"
 	"net"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/gopherjs/gopherjs/js"
 )
@@ -43,18 +44,15 @@ func NextHandle() Handle {
 type kernel interface {
 	Dial(networkPort Handle) (net.Conn, error)
 	Listen(networkPort Handle) (net.Listener, error)
-	Read(handle Handle, data []byte) (int, error)
-	Write(handle Handle, data []byte) (int, error)
-	StartProcess(name string, env []string) (handle Handle, err error)
-	Close(handle Handle) error
+	Pipe() (r, w int, err error)
+
+	Close(fd int) error
+	StartProcess(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error)
+	Read(fd int, p []byte) (int, error)
+	Write(fd int, p []byte) (int, error)
 }
 
 var defaultKernel kernel
-
-// StartProcess starts a web worker with the given name
-func StartProcess(name string, env []string) (handle Handle, err error) {
-	return defaultKernel.StartProcess(name, env)
-}
 
 func toBytes(obj *js.Object) []byte {
 	return js.Global.Get("Uint8Array").New(obj).Interface().([]byte)
