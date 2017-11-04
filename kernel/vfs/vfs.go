@@ -13,16 +13,14 @@ type (
 	// A VFS is a virtual file system
 	VFS struct {
 		db      *js.Object
-		files   map[int]*vfsFile
+		files   map[int]vfsFile
 		counter int
 	}
-	vfsFile struct {
-		path string
-		mode int
-		perm uint32
-
-		position int
-		data     []byte //TODO: use blocks instead of a single slice of bytes
+	vfsFile interface {
+		Close() error
+		FCNTL(cmd int, arg int) (val int, err error)
+		Read(p []byte) (n int, err error)
+		Write(p []byte) (n int, err error)
 	}
 )
 
@@ -48,7 +46,7 @@ func New() (*VFS, error) {
 		c <- Result{
 			vfs: &VFS{
 				db:      req.Get("result"),
-				files:   make(map[int]*vfsFile),
+				files:   make(map[int]vfsFile),
 				counter: 10000,
 			},
 		}
@@ -64,49 +62,38 @@ func (vfs *VFS) Close(fd int) (err error) {
 	if !ok {
 		return nil
 	}
-
-	// nothing to do when we weren't open for writing
-	if !canWrite(f.mode) {
-		return nil
-	}
-
-	// flush the data to the db
-	type Result struct {
-		err error
-	}
-	c := make(chan Result, 1)
-	tx := vfs.db.Call("transaction", js.S{"files"}, "readwrite")
-	req := tx.Call("objectStore", "files").Call("put", f.data, f.path)
-	req.Set("onsuccess", func(evt *js.Object) {
-		c <- Result{}
-	})
-	req.Set("onerror", func(evt *js.Object) {
-		c <- Result{
-			err: errors.New(evt.Get("target").Get("error").String()),
-		}
-	})
-	return (<-c).err
+	return f.Close()
 }
 
 // Open opens a file
 func (vfs *VFS) Open(path string, mode int, perm uint32) (fd int, err error) {
-	f := &vfsFile{
-		path: path,
-		mode: mode,
-		perm: perm,
-
-		position: 0,
-		data:     nil,
-	}
-
+	js.Global.Get("console").Call("log", "VFS", "Open", path, mode, perm)
+	var f vfsFile
 	switch path {
 	case "/dev/null":
+		f = &vfsInMemoryFile{
+			vfs: vfs,
+
+			path: path,
+			mode: mode,
+			perm: perm,
+		}
+	case "/dev/tty":
+		f = new(ttyFile)
 	default:
+		imf := &vfsInMemoryFile{
+			vfs: vfs,
+
+			path: path,
+			mode: mode,
+			perm: perm,
+		}
+
 		type Result struct {
 			res *js.Object
 			err error
 		}
-	
+
 		c := make(chan Result, 1)
 		tx := vfs.db.Call("transaction", js.S{"files"}, "readonly")
 		req := tx.Call("objectStore", "files").Call("get", path)
@@ -120,26 +107,27 @@ func (vfs *VFS) Open(path string, mode int, perm uint32) (fd int, err error) {
 				err: errors.New(evt.Get("target").Get("error").String()),
 			}
 		})
-	
+
 		res := <-c
 		if res.err != nil {
 			return 0, err
 		}
-	
+
 		if bs, ok := res.res.Interface().([]byte); ok && bs != nil {
-			f.data = bs
+			imf.data = bs
 		} else {
 			if mode&os.O_CREATE == 0 {
 				return 0, os.ErrNotExist
 			}
 		}
-	}
 
-	if mode&os.O_TRUNC > 0 {
-		f.position = 0
-		f.data = nil
-	} else {
-		f.position = len(f.data)
+		if mode&os.O_TRUNC > 0 {
+			imf.position = 0
+			imf.data = nil
+		} else {
+			imf.position = len(imf.data)
+		}
+		f = imf
 	}
 
 	fd = vfs.counter
@@ -158,7 +146,78 @@ func (vfs *VFS) Read(fd int, p []byte) (n int, err error) {
 	if !ok {
 		return 0, os.ErrInvalid
 	}
+	return f.Read(p)
+}
 
+// Write writes a file
+func (vfs *VFS) Write(fd int, p []byte) (n int, err error) {
+	// stderr/stdout
+	if fd == 1 || fd == 2 {
+		js.Global.Get("console").Call("log", string(p))
+		return len(p), nil
+	}
+
+	f, ok := vfs.files[fd]
+	if !ok {
+		return 0, os.ErrInvalid
+	}
+	return f.Write(p)
+}
+
+// FCNTL calls FCNTL on a file
+func (vfs *VFS) FCNTL(fd int, cmd int, arg int) (val int, err error) {
+	f, ok := vfs.files[fd]
+	if !ok {
+		return -1, os.ErrInvalid
+	}
+	return f.FCNTL(cmd, arg)
+}
+
+type vfsInMemoryFile struct {
+	vfs *VFS
+
+	path string
+	mode int
+	perm uint32
+
+	position int
+	data     []byte //TODO: use blocks instead of a single slice of bytes
+}
+
+func (f *vfsInMemoryFile) Close() error {
+	// nothing to do when we weren't open for writing
+	if !canWrite(f.mode) {
+		return nil
+	}
+
+	// flush the data to the db
+	type Result struct {
+		err error
+	}
+	c := make(chan Result, 1)
+	tx := f.vfs.db.Call("transaction", js.S{"files"}, "readwrite")
+	req := tx.Call("objectStore", "files").Call("put", f.data, f.path)
+	req.Set("onsuccess", func(evt *js.Object) {
+		c <- Result{}
+	})
+	req.Set("onerror", func(evt *js.Object) {
+		c <- Result{
+			err: errors.New(evt.Get("target").Get("error").String()),
+		}
+	})
+	return (<-c).err
+}
+
+func (f *vfsInMemoryFile) FCNTL(cmd int, arg int) (val int, err error) {
+	switch cmd {
+	case syscall.F_GETFL:
+		return f.mode, nil
+	}
+
+	return -1, syscall.EACCES
+}
+
+func (f *vfsInMemoryFile) Read(p []byte) (n int, err error) {
 	if !canRead(f.mode) {
 		return 0, os.ErrPermission
 	}
@@ -179,19 +238,7 @@ func (vfs *VFS) Read(fd int, p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// Write writes a file
-func (vfs *VFS) Write(fd int, p []byte) (n int, err error) {
-	// stderr/stdout
-	if fd == 1 || fd == 2 {
-		js.Global.Get("console").Call("log", string(p))
-		return len(p), nil
-	}
-
-	f, ok := vfs.files[fd]
-	if !ok {
-		return 0, os.ErrInvalid
-	}
-
+func (f *vfsInMemoryFile) Write(p []byte) (n int, err error) {
 	if !canWrite(f.mode) {
 		return 0, os.ErrPermission
 	}
@@ -206,21 +253,6 @@ func (vfs *VFS) Write(fd int, p []byte) (n int, err error) {
 	f.position += len(p)
 
 	return len(p), nil
-}
-
-// FCNTL calls FCNTL on a file
-func (vfs *VFS) FCNTL(fd int, cmd int, arg int) (val int, err error) {
-	f, ok := vfs.files[fd]
-	if !ok {
-		return -1, os.ErrInvalid
-	}
-
-	switch cmd {
-	case syscall.F_GETFL:
-		return f.mode, nil
-	}
-
-	return -1, syscall.EACCES
 }
 
 func canRead(mode int) bool {

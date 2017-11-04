@@ -18,7 +18,7 @@ import (
 
 func writeFiles(projectDir string) error {
 	for name, tpl := range map[string]*template.Template{
-		"simulator_kernel_init.go": initTemplate,
+		"aaa_simulator_kernel_init.go": initTemplate,
 	} {
 		f, err := os.Create(filepath.Join(projectDir, name))
 		if err != nil {

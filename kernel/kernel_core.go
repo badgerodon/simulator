@@ -110,7 +110,7 @@ func (k *coreKernel) Wait(pid int) error {
 }
 
 func (k *coreKernel) Write(fd int, p []byte) (int, error) {
-	js.Global.Get("console").Call("log", "CK", "Write", fd, p)
+	//js.Global.Get("console").Call("log", "CK", "Write", fd, p)
 	k.Lock()
 	w, ok := k.writers[fd]
 	k.Unlock()
@@ -190,7 +190,7 @@ func (k *coreKernel) Close(fd int) error {
 }
 
 func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error) {
-	js.Global.Get("console").Call("log", "CK", "StartProcess", argv0, argv, attr)
+	//js.Global.Get("console").Call("log", "CK", "StartProcess", argv0, argv, attr)
 	pid = int(NextHandle())
 
 	type Result struct {
@@ -203,6 +203,13 @@ func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.Pro
 	vs.Set("branch", "master")
 	js.Global.Get("fetch").Invoke("/api/build?"+vs.Encode()).
 		Call("then", func(res *js.Object) *js.Object {
+			status := res.Get("status").Int() / 100
+			if status != 2 && status != 3 {
+				res.Call("text").Call("then", func(txt *js.Object) {
+					c <- Result{err: errors.New(txt.String())}
+				})
+				return nil
+			}
 			return res.Call("json")
 		}).
 		Call("then", func(res *js.Object) {
@@ -213,7 +220,7 @@ func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.Pro
 		})
 	result := <-c
 	if result.err != nil {
-		return 0, handle, err
+		return 0, handle, result.err
 	}
 
 	vs = make(url.Values)

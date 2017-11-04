@@ -69,7 +69,7 @@ func (k *webWorkerKernel) Wait(pid int) error {
 }
 
 func (k *webWorkerKernel) Write(fd int, p []byte) (int, error) {
-	js.Global.Get("console").Call("log", "WW", "Write", fd, p)
+	//js.Global.Get("console").Call("log", "WW", "Write", fd, p)
 	b := js.NewArrayBuffer(p)
 	res, err := k.client.Invoke("Write", []interface{}{fd, b}, []interface{}{b})
 	if err != nil {

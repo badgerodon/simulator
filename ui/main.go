@@ -19,7 +19,7 @@ type terminalWriter struct {
 }
 
 func (w *terminalWriter) Write(p []byte) (int, error) {
-	js.Global.Get("console").Call("log", "TW", "Write", p)
+	//js.Global.Get("console").Call("log", "TW", "Write", p)
 	w.term.Call("writeln", string(p))
 	return len(p), nil
 }
@@ -51,5 +51,7 @@ func main() {
 	cmd.Stderr = w
 	err := cmd.Run()
 
-	js.Global.Get("console").Call("log", "DONE!", err)
+	if err != nil {
+		term.Call("writeln", err.Error())
+	}
 }

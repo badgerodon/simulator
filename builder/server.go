@@ -127,16 +127,18 @@ func (s *Server) buildVCS(ref vcsReference, req *builderpb.BuildRequest, dir, he
 		return grpc.Errorf(codes.Unknown, "failed to write template files: %v", err)
 	}
 
-	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(dir, name+".js"), req.ImportPath)
-	gopaths := []string{dir}
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "GOPATH=") {
-			gopaths = append(gopaths, e[7:])
-		} else {
-			cmd.Env = append(cmd.Env, e)
+	// download dependencies if there is no vendor directory
+	if _, e := os.Stat(filepath.Join(dir, "vendor")); e != nil {
+		cmd := exec.Command("go", "get", "-d", req.ImportPath)
+		cmd.Env = s.getEnv(dir)
+		bs, err := cmd.CombinedOutput()
+		if err != nil {
+			return grpc.Errorf(codes.Unknown, "failed to get dependencies: %v\n%v", err, string(bs))
 		}
 	}
-	cmd.Env = append(cmd.Env, fmt.Sprintf("GOPATH=%s", strings.Join(gopaths, ":")))
+
+	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(dir, name+".js"), req.ImportPath)
+	cmd.Env = s.getEnv(dir)
 	bs, err := cmd.CombinedOutput()
 	if err != nil {
 		return grpc.Errorf(codes.Unknown, "failed to build code: %v\n%v", err, string(bs))
@@ -153,6 +155,19 @@ func (s *Server) buildVCS(ref vcsReference, req *builderpb.BuildRequest, dir, he
 	}
 
 	return nil
+}
+
+func (s *Server) getEnv(dir string) []string {
+	var env []string
+	gopaths := []string{dir}
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "GOPATH=") {
+			gopaths = append(gopaths, e[7:])
+		} else {
+			env = append(env, e)
+		}
+	}
+	return append(env, fmt.Sprintf("GOPATH=%s", strings.Join(gopaths, ":")))
 }
 
 func (s *Server) injectMapSources(dst, src string) error {
