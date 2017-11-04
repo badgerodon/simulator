@@ -19,6 +19,7 @@ type terminalWriter struct {
 }
 
 func (w *terminalWriter) Write(p []byte) (int, error) {
+	js.Global.Get("console").Call("log", "TW", "Write", p)
 	w.term.Call("writeln", string(p))
 	return len(p), nil
 }
@@ -45,10 +46,10 @@ func main() {
 	}
 
 	//kernel.StartProcess("github.com/badgerodon/simulator-examples/hello", nil)
-	cmd := exec.Command("github.com/badgerodon/simulator/examples/hello")
+	cmd := exec.Command(js.Global.Get("location").Get("pathname").Call("substr", 5).String())
 	cmd.Stdout = w
 	cmd.Stderr = w
-	cmd.Run()
+	err := cmd.Run()
 
-	// js.Global.Get("console").Call("log", term)
+	js.Global.Get("console").Call("log", "DONE!", err)
 }

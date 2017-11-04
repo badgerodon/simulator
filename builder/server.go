@@ -132,7 +132,6 @@ func (s *Server) buildVCS(ref vcsReference, req *builderpb.BuildRequest, dir, he
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "GOPATH=") {
 			gopaths = append(gopaths, e[7:])
-			//gopaths = append([]string{e[7:]}, gopaths...)
 		} else {
 			cmd.Env = append(cmd.Env, e)
 		}

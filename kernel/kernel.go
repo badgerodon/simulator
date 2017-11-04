@@ -49,6 +49,7 @@ type kernel interface {
 	Close(fd int) error
 	StartProcess(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error)
 	Read(fd int, p []byte) (int, error)
+	Wait(pid int) error
 	Write(fd int, p []byte) (int, error)
 }
 

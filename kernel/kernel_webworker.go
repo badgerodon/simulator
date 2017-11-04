@@ -59,6 +59,15 @@ func (k *webWorkerKernel) Read(fd int, p []byte) (int, error) {
 	return len(b), nil
 }
 
+func (k *webWorkerKernel) Wait(pid int) error {
+	js.Global.Get("console").Call("log", "WW", "Wait", pid)
+	_, err := k.client.Invoke("Write", []interface{}{pid}, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (k *webWorkerKernel) Write(fd int, p []byte) (int, error) {
 	js.Global.Get("console").Call("log", "WW", "Write", fd, p)
 	b := js.NewArrayBuffer(p)

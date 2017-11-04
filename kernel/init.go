@@ -14,13 +14,16 @@ import (
 
 	"github.com/badgerodon/simulator/kernel/vfs"
 	"github.com/gopherjs/gopherjs/js"
-	"github.com/gopherjs/jsbuiltin"
 )
 
 func init() {
 	if js.Global.Get("DedicatedWorkerGlobalScope").Bool() &&
-		jsbuiltin.InstanceOf(js.Global.Get("self"), js.Global.Get("DedicatedWorkerGlobalScope")) {
-		defaultKernel = newWebWorkerKernel(NewRPCMessageChannelClient(js.Global.Get("self")))
+		!js.Global.Get("document").Bool() {
+		client := NewRPCMessageChannelClient(js.Global.Get("self"))
+		defaultKernel = newWebWorkerKernel(client)
+		js.Global.Set("ATEXIT", func() {
+			client.Invoke("Exit", nil, nil)
+		})
 	} else {
 		defaultKernel = newCoreKernel()
 	}
@@ -79,6 +82,9 @@ func init() {
 	syscall.DefaultStartProcessFunction = func(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error) {
 		return defaultKernel.StartProcess(argv0, argv, attr)
 	}
+	syscall.DefaultReadFunction = func(fd int, p []byte) (int, error) {
+		return defaultKernel.Read(fd, p)
+	}
 	syscall.DefaultWriteFunction = func(fd int, p []byte) (int, error) {
 		return defaultKernel.Write(fd, p)
 	}
@@ -91,17 +97,14 @@ func init() {
 	}
 
 	syscall.DefaultCloseFunction = func(fd int) error {
-		js.Global.Get("console").Call("log", "CLOSE", fd)
 		return fs.Close(fd)
 	}
 
 	syscall.DefaultOpenFunction = func(path string, mode int, perm uint32) (fd int, err error) {
-		js.Global.Get("console").Call("log", "OPEN", path, mode, perm)
 		return fs.Open(path, mode, perm)
 	}
 
 	syscall.DefaultFCNTLFunction = func(fd int, cmd int, arg int) (val int, err error) {
-		js.Global.Get("console").Call("log", "FCNTL", fd, cmd, arg)
 		return fs.FCNTL(fd, cmd, arg)
 	}
 
@@ -113,6 +116,10 @@ func init() {
 		p[0] = r
 		p[1] = w
 		return nil
+	}
+
+	syscall.DefaultWait4Function = func(pid int, wstatus *syscall.WaitStatus, options int, rusage *syscall.Rusage) (wpid int, err error) {
+		return 0, defaultKernel.Wait(pid)
 	}
 
 	u, err := url.Parse(js.Global.Get("location").Get("href").String())

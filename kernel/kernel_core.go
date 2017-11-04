@@ -14,10 +14,15 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 )
 
+type coreKernelWorker struct {
+	*js.Object
+	waiter chan struct{}
+}
+
 type coreKernel struct {
 	sync.Mutex
 	listeners   map[Handle]*js.Object
-	workers     map[Handle]*js.Object
+	workers     map[Handle]coreKernelWorker
 	connections map[Handle]*js.Object
 	readers     map[int]io.Reader
 	writers     map[int]io.WriteCloser
@@ -28,7 +33,7 @@ type coreKernel struct {
 func newCoreKernel() *coreKernel {
 	return &coreKernel{
 		listeners:   make(map[Handle]*js.Object),
-		workers:     make(map[Handle]*js.Object),
+		workers:     make(map[Handle]coreKernelWorker),
 		connections: make(map[Handle]*js.Object),
 		readers:     make(map[int]io.Reader),
 		writers:     make(map[int]io.WriteCloser),
@@ -92,6 +97,18 @@ func (k *coreKernel) Read(fd int, p []byte) (int, error) {
 	return 0, errors.New("Read not implemented")
 }
 
+func (k *coreKernel) Wait(pid int) error {
+	js.Global.Get("console").Call("log", "CK", "Wait", pid)
+	k.Lock()
+	w, ok := k.workers[Handle(pid)]
+	k.Unlock()
+	if !ok {
+		return errors.New("process not found")
+	}
+	<-w.waiter
+	return nil
+}
+
 func (k *coreKernel) Write(fd int, p []byte) (int, error) {
 	js.Global.Get("console").Call("log", "CK", "Write", fd, p)
 	k.Lock()
@@ -119,6 +136,7 @@ func (k *coreKernel) Write(fd int, p []byte) (int, error) {
 }
 
 func (k *coreKernel) Close(fd int) error {
+	js.Global.Get("console").Call("log", "CK", "Close", fd)
 	handle := Handle(fd)
 
 	k.Lock()
@@ -135,6 +153,7 @@ func (k *coreKernel) Close(fd int) error {
 	delete(k.workers, handle)
 	k.Unlock()
 	if ok {
+		close(w.waiter)
 		w.Call("terminate")
 		return nil
 	}
@@ -217,6 +236,9 @@ func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.Pro
 				return nil, nil, err
 			}
 			return []*js.Object{port}, []*js.Object{port}, nil
+		case "Exit":
+			k.Close(pid)
+			return []*js.Object{}, []*js.Object{}, nil
 		case "Listen":
 			networkPort := Handle(arguments[0].Int64())
 			port, err := k.listen(networkPort)
@@ -236,9 +258,9 @@ func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.Pro
 			jbuf := js.NewArrayBuffer(buf)
 			return []*js.Object{jbuf}, []*js.Object{jbuf}, nil
 		case "Write":
-			handle := Handle(arguments[0].Int64())
+			fd := arguments[0].Int()
 			buf := toBytes(arguments[1])
-			n, err := k.Write(int(handle), buf)
+			n, err := k.Write(fd, buf)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -250,7 +272,10 @@ func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.Pro
 	})
 
 	k.Lock()
-	k.workers[Handle(pid)] = worker
+	k.workers[Handle(pid)] = coreKernelWorker{
+		Object: worker,
+		waiter: make(chan struct{}),
+	}
 	k.Unlock()
 
 	return pid, uintptr(pid), nil
