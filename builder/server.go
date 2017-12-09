@@ -23,10 +23,6 @@ import (
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"gopkg.in/src-d/go-billy.v3/osfs"
-	git "gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-git.v4/storage/memory"
 )
 
 type vcsReference struct {
@@ -111,14 +107,11 @@ func (s *Server) buildVCS(ref vcsReference, req *builderpb.BuildRequest, dir, he
 		return grpc.Errorf(codes.Unknown, "failed to create src folder: %v", err)
 	}
 
-	_, err = git.Clone(memory.NewStorage(), osfs.New(checkoutPath), &git.CloneOptions{
-		URL:           ref.gitURL(),
-		ReferenceName: plumbing.ReferenceName("refs/heads/" + req.Branch),
-		SingleBranch:  true,
-		Depth:         1,
-	})
+	os.RemoveAll(checkoutPath)
+
+	bs, err := exec.Command("git", "clone", "--depth", "1", "--branch", req.Branch, ref.gitURL(), checkoutPath).CombinedOutput()
 	if err != nil {
-		return grpc.Errorf(codes.Unknown, "failed to clone git repository: %v", err)
+		return grpc.Errorf(codes.Unknown, "failed to clone git repository: %v\n%s", err, bs)
 	}
 
 	fmt.Println(filepath.Join(dir, "src", req.ImportPath))
@@ -139,7 +132,7 @@ func (s *Server) buildVCS(ref vcsReference, req *builderpb.BuildRequest, dir, he
 
 	cmd := exec.Command("gopherjs", "build", "-o", filepath.Join(dir, name+".js"), req.ImportPath)
 	cmd.Env = s.getEnv(dir)
-	bs, err := cmd.CombinedOutput()
+	bs, err = cmd.CombinedOutput()
 	if err != nil {
 		return grpc.Errorf(codes.Unknown, "failed to build code: %v\n%v", err, string(bs))
 	}
@@ -152,6 +145,21 @@ func (s *Server) buildVCS(ref vcsReference, req *builderpb.BuildRequest, dir, he
 	err = os.Rename(mapPath+".out", mapPath)
 	if err != nil {
 		return grpc.Errorf(codes.Unknown, "failed to move file to working directory: %v", err)
+	}
+
+	for _, o := range []struct {
+		f func(string) error
+		n string
+	}{
+		{gzipCompress, name + ".js"},
+		{gzipCompress, name + ".js.map"},
+		{brotliCompress, name + ".js"},
+		{brotliCompress, name + ".js.map"},
+	} {
+		err = o.f(filepath.Join(dir, o.n))
+		if err != nil {
+			fmt.Println("failed to comrpess", err)
+		}
 	}
 
 	return nil

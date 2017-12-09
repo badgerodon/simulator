@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	http.HandleFunc("/api/v1/build", handleAPIBuild)
+	http.HandleFunc("/api/build", handleAPIBuild)
 }
 
 func handleAPIBuild(w http.ResponseWriter, r *http.Request) {

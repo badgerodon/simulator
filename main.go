@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/badgerodon/httpcompression"
 	"github.com/badgerodon/simulator/builder/builderpb"
 )
 
@@ -39,8 +40,8 @@ func run() error {
 		grpcServer.Serve(li)
 	}()
 
-	http.Handle("/ui/assets/", http.StripPrefix("/ui/assets/", http.FileServer(http.Dir("./ui/assets/"))))
-	http.Handle("/srv/", http.StripPrefix("/srv/", http.FileServer(http.Dir(builderDataDir))))
+	http.Handle("/ui/assets/", http.StripPrefix("/ui/assets/", httpcompression.FileServer(http.Dir("./ui/assets/"))))
+	http.Handle("/srv/", http.StripPrefix("/srv/", httpcompression.FileServer(http.Dir(builderDataDir))))
 	http.Handle("/", http.HandlerFunc(handleCatchAll))
 
 	addr := os.Getenv("ADDR")
