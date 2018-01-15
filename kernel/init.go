@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -22,12 +24,25 @@ func init() {
 	if js.Global.Get("DedicatedWorkerGlobalScope").Bool() &&
 		!js.Global.Get("document").Bool() {
 		client := NewRPCMessageChannelClient(js.Global.Get("self"))
-		defaultKernel = newWebWorkerKernel(client)
+		wwk := newWebWorkerKernel(client)
+		defaultKernel = wwk
 		js.Global.Set("ATEXIT", func() {
 			client.Invoke("Exit", nil, nil)
 		})
+
+		NextHandle = func() Handle {
+			res, err := wwk.client.Invoke("NextHandle", nil, nil)
+			if err != nil {
+				panic(err)
+			}
+			return Handle(res[0].Int64())
+		}
 	} else {
 		defaultKernel = newCoreKernel()
+		var handleCounter int64 = math.MaxUint16
+		NextHandle = func() Handle {
+			return Handle(atomic.AddInt64(&handleCounter, 1))
+		}
 	}
 
 	net.DefaultDialContextFunction = func(ctx context.Context, network, address string) (net.Conn, error) {

@@ -2,9 +2,7 @@ package kernel
 
 import (
 	"fmt"
-	"math"
 	"net"
-	"sync/atomic"
 	"syscall"
 
 	"github.com/gopherjs/gopherjs/js"
@@ -34,12 +32,8 @@ func (h Handle) String() string {
 	return fmt.Sprint(int64(h))
 }
 
-var handleCounter int64 = math.MaxUint16
-
 // NextHandle generates the next Handle
-func NextHandle() Handle {
-	return Handle(atomic.AddInt64(&handleCounter, 1))
-}
+var NextHandle func() Handle
 
 type kernel interface {
 	Dial(networkPort Handle) (net.Conn, error)

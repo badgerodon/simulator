@@ -57,6 +57,7 @@ func (k *coreKernel) Dial(networkPort Handle) (net.Conn, error) {
 	conn := newAckedMessagePortConn(localPort, networkPort, port, func() {
 		k.Close(int(localPort))
 	})
+	js.Global.Get("console").Call("log", "CK", "Dial", networkPort, localPort)
 	return conn, nil
 }
 
@@ -65,9 +66,11 @@ func (k *coreKernel) Listen(networkPort Handle) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newMessagePortListener(networkPort, port, func() {
+	li := newMessagePortListener(networkPort, port, func() {
 		k.Close(int(networkPort))
-	}), nil
+	})
+	js.Global.Get("console").Call("log", "CK", "Listen", networkPort)
+	return li, nil
 }
 
 func (k *coreKernel) Pipe() (r, w int, err error) {
@@ -82,6 +85,8 @@ func (k *coreKernel) Pipe() (r, w int, err error) {
 	k.readers[r] = cr
 	k.writers[w] = cw
 	k.Unlock()
+
+	js.Global.Get("console").Call("log", "CK", "Pipe", r, w)
 
 	return r, w, nil
 }
@@ -110,7 +115,7 @@ func (k *coreKernel) Wait(pid int) error {
 }
 
 func (k *coreKernel) Write(fd int, p []byte) (int, error) {
-	//js.Global.Get("console").Call("log", "CK", "Write", fd, p)
+	js.Global.Get("console").Call("log", "CK", "Write", fd, p)
 	k.Lock()
 	w, ok := k.writers[fd]
 	k.Unlock()
@@ -144,6 +149,7 @@ func (k *coreKernel) Close(fd int) error {
 	delete(k.listeners, handle)
 	k.Unlock()
 	if ok {
+		js.Global.Get("console").Call("log", "CK", "Close", "Listener", handle, li)
 		li.Call("close")
 		return nil
 	}
@@ -153,36 +159,45 @@ func (k *coreKernel) Close(fd int) error {
 	delete(k.workers, handle)
 	k.Unlock()
 	if ok {
+		js.Global.Get("console").Call("log", "CK", "Close", "Worker", handle, w)
 		close(w.waiter)
 		w.Call("terminate")
 		return nil
 	}
 
+	// close connections
 	k.Lock()
 	c, ok := k.connections[handle]
 	delete(k.connections, handle)
 	k.Unlock()
 	if ok {
+		js.Global.Get("console").Call("log", "CK", "Close", "Connection", handle, c)
 		c.Call("close")
 		return nil
 	}
+
+	// close readers
 	{
 		k.Lock()
-		_, ok := k.readers[int(handle)]
+		r, ok := k.readers[int(handle)]
 		delete(k.readers, int(handle))
 		k.Unlock()
 		if ok {
+			js.Global.Get("console").Call("log", "CK", "Close", "Reader", handle, r)
 			return nil
 		}
 	}
 
+	// close writers
 	{
 		k.Lock()
 		w, ok := k.writers[int(handle)]
 		delete(k.writers, int(handle))
 		k.Unlock()
 		if ok {
-			return w.Close()
+			js.Global.Get("console").Call("log", "CK", "Close", "Writer", handle, w)
+			w.Close()
+			return nil
 		}
 	}
 
@@ -190,7 +205,7 @@ func (k *coreKernel) Close(fd int) error {
 }
 
 func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.ProcAttr) (pid int, handle uintptr, err error) {
-	//js.Global.Get("console").Call("log", "CK", "StartProcess", argv0, argv, attr)
+	js.Global.Get("console").Call("log", "CK", "StartProcess", argv0, argv, attr)
 	pid = int(NextHandle())
 
 	type Result struct {
@@ -253,6 +268,9 @@ func (k *coreKernel) StartProcess(argv0 string, argv []string, attr *syscall.Pro
 				return nil, nil, err
 			}
 			return []*js.Object{port}, []*js.Object{port}, nil
+		case "NextHandle":
+			h := int64(NextHandle())
+			return []*js.Object{js.InternalObject(h)}, nil, nil
 		case "Read":
 			handle := Handle(arguments[0].Int64())
 			sz := arguments[1].Int()

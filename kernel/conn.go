@@ -75,9 +75,11 @@ func (c *ackedMessagePortConn) Write(b []byte) (n int, err error) {
 }
 
 func (c *ackedMessagePortConn) Close() error {
-	if c.onClose != nil {
-		c.onClose()
-		c.onClose = nil
+	c.trace("CLOSE", nil)
+	onClose := c.onClose
+	c.onClose = nil
+	if onClose != nil {
+		onClose()
 	}
 	return nil
 }
@@ -105,5 +107,5 @@ func (c *ackedMessagePortConn) SetWriteDeadline(t time.Time) error {
 }
 
 func (c *ackedMessagePortConn) trace(typ string, data []byte) {
-	//fmt.Printf("%s %05d:%05d %x\n", typ, c.srcPort, c.dstPort, data)
+	js.Global.Get("console").Call("log", fmt.Sprintf("Conn %s %05d:%05d %x\n", typ, c.src, c.dst, data))
 }

@@ -41,17 +41,21 @@ func (r *ChannelReader) Read(b []byte) (sz int, err error) {
 			return sz, nil
 		}
 
+		var ok bool
 		if r.deadline.IsZero() {
-			r.buf = <-r.c
+			r.buf, ok = <-r.c
 		} else {
 			timer := time.NewTimer(r.deadline.Sub(time.Now()))
 			defer timer.Stop()
 
 			select {
-			case r.buf = <-r.c:
+			case r.buf, ok = <-r.c:
 			case <-timer.C:
 				return 0, context.DeadlineExceeded
 			}
+		}
+		if len(r.buf) == 0 && !ok {
+			return 0, io.EOF
 		}
 	}
 }
@@ -75,7 +79,11 @@ func NewChannelWriter(c chan<- []byte) *ChannelWriter {
 }
 
 func (w *ChannelWriter) Close() error {
-	close(w.c)
+	c := w.c
+	w.c = nil
+	if c != nil {
+		close(c)
+	}
 	return nil
 }
 
