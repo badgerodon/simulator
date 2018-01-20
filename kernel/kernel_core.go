@@ -99,6 +99,8 @@ func (k *coreKernel) Read(fd int, p []byte) (int, error) {
 		return r.Read(p)
 	}
 
+	js.Global.Get("console").Call("log", "read", fd)
+
 	return 0, errors.New("Read not implemented")
 }
 
